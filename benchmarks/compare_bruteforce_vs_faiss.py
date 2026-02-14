@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 import json
+import platform
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -112,6 +114,13 @@ def main() -> None:
         help="Benchmark mode: exact=bruteforce+faiss Flat, ann=bruteforce+faiss Flat+IVF.",
     )
     parser.add_argument("--seed", type=int, default=7, help="Random seed.")
+    parser.add_argument(
+        "--min-flat-overlap",
+        type=float,
+        default=None,
+        help="Optional minimum overlap_vs_bruteforce required for faiss_flat (exact mode checks).",
+    )
+    parser.add_argument("--output", default=None, help="Optional path to save JSON benchmark artifact.")
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -150,6 +159,7 @@ def main() -> None:
         )
 
     summary = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "config": {
             "seed": args.seed,
             "n": args.n,
@@ -159,9 +169,30 @@ def main() -> None:
             "warmup": args.warmup,
             "loops": args.loops,
             "mode": args.mode,
+            "min_flat_overlap": args.min_flat_overlap,
+        },
+        "environment": {
+            "platform": platform.platform(),
+            "python_version": platform.python_version(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
         },
         "results": rows,
     }
+    if args.min_flat_overlap is not None:
+        flat_rows = [r for r in rows if r["backend"] == "faiss_flat"]
+        if flat_rows:
+            overlap = float(flat_rows[0]["overlap_vs_bruteforce"])
+            if overlap < args.min_flat_overlap:
+                raise RuntimeError(
+                    f"benchmark_error: faiss_flat overlap {overlap:.4f} below required {args.min_flat_overlap:.4f}"
+                )
+        elif args.mode == "exact":
+            raise RuntimeError("benchmark_error: faiss_flat unavailable; cannot enforce overlap gate")
+    if args.output:
+        os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
     print(json.dumps(summary, indent=2))
 
 if __name__ == "__main__":

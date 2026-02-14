@@ -56,3 +56,5 @@ Common user-facing error prefixes:
 - `metric_error`
 - `index_error`
 - `manifest_error`
+- `ml_error` and `training_error` for ML helper validation failures
+- `eval_error` for malformed retrieval-evaluation inputs

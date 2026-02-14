@@ -23,7 +23,7 @@ pip install -e ".[dev,ml]"
 pip install -e ".[faiss]"
 ```
 
-## API contracts (v0.1)
+## API contracts (v0.2-alpha)
 
 - `VectorArray` accepts only 2D arrays with shape `(n, d)` where `n > 0` and `d > 0`.
 - `VectorArray` IDs must be unique and must be `int` or `str`.
@@ -32,6 +32,9 @@ pip install -e ".[faiss]"
 - Score direction is explicit in `Metric.higher_is_better`:
   - cosine/ip: higher is better
   - l2: lower is better
+- `kmeans(..., random_state=...)` requires an integer seed and finite vectors.
+- `mine_hard_negatives` supports `top1`, `topk_sample`, and `distance_band` strategies with explicit exclusion controls.
+- Retrieval eval validates malformed ground-truth shapes/types with stable `eval_error` messages.
 
 ## 60-second quickstart
 
@@ -57,7 +60,8 @@ print(res.ids[0], res.scores[0])
 - `Metric`: built-in and custom metric definitions.
 - `VectorIndex`: backend-agnostic build/add/search/save/load.
 - `vector_engine.ml`: `knn_classify`, `knn_regress`, `kmeans`.
-- `vector_engine.eval`: `precision_at_k`, `recall_at_k`, `ndcg_at_k`, `retrieval_report`.
+- `vector_engine.training`: `mine_hard_negatives` with configurable sampling strategies.
+- `vector_engine.eval`: `precision_at_k`, `recall_at_k`, `ndcg_at_k`, `retrieval_report`, `retrieval_report_detailed`, `batch_metrics_summary`.
 
 ## Backend support matrix
 
@@ -80,6 +84,12 @@ Run:
 python benchmarks/compare_bruteforce_vs_faiss.py --mode exact
 ```
 
+With exact-overlap gate and artifact output:
+
+```bash
+python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/benchmark_exact.json
+```
+
 ANN mode (optional):
 
 ```bash
@@ -100,6 +110,51 @@ Recommended protocol for publishable results:
 - Run at least 3 repeated trials and report median numbers.
 - Keep dataset size (`n`, `d`, `nq`, `k`) fixed across backend comparisons.
 
+## Track B validation snapshot
+
+Artifacts produced in this repo:
+
+- Real-corpus style 3-run reports:
+  - `artifacts/real_corpus_runs/run_1.json`
+  - `artifacts/real_corpus_runs/run_2.json`
+  - `artifacts/real_corpus_runs/run_3.json`
+- Faiss Flat exact-equivalence checks (3 runs):
+  - `artifacts/faiss_equivalence/run_1.json`
+  - `artifacts/faiss_equivalence/run_2.json`
+  - `artifacts/faiss_equivalence/run_3.json`
+- 200-run stability study:
+  - `artifacts/testing_runs/stability_runs_bruteforce_200.jsonl`
+  - `artifacts/testing_runs/stability_summary_bruteforce_200.json`
+  - `artifacts/testing_runs/stability_plot_p95_qps.png`
+
+Observed outcomes for current mock/public-safe corpus:
+
+- 3-run quality is identical across runs (`recall@1/3/6 = 1.0`, `ndcg@1/3/6 = 1.0`).
+- 3-run latency envelope: p95 ranges from `0.0376 ms` to `0.0717 ms`.
+- Faiss Flat exact mode achieves `overlap_vs_bruteforce = 1.0` for all 3 runs with `--min-flat-overlap 0.99`.
+- In exact benchmark runs (`n=10000`, `d=128`, `nq=200`, `k=10`), Faiss Flat p95 latency is `4.17-15.03 ms` vs bruteforce `29.99-37.63 ms`.
+- 200-run bruteforce study: p95 mean `0.0255 ms` (95% interval `0.0203-0.0547 ms`), QPS mean `188,097` (95% interval `117,499-214,111`).
+
+Run the 200-run study:
+
+```bash
+python3 scripts/stability_runs.py \
+  --embeddings artifacts/real_corpus_inputs/embeddings.npy \
+  --query-embeddings artifacts/real_corpus_inputs/query_embeddings.npy \
+  --ids artifacts/real_corpus_inputs/ids.json \
+  --ground-truth artifacts/real_corpus_inputs/ground_truth.json \
+  --metadata artifacts/real_corpus_inputs/metadata.json \
+  --backend bruteforce \
+  --k 6 \
+  --ks 1,3,6 \
+  --loops 5 \
+  --run-count 200 \
+  --output-dir artifacts/testing_runs \
+  --threshold-recall 0.75 \
+  --threshold-ndcg 0.70 \
+  --threshold-p95-ms 120
+```
+
 Example result table format:
 
 | Backend | QPS | p50 ms | p95 ms | overlap@k vs brute-force |
@@ -113,9 +168,17 @@ Example result table format:
 - Install: `pip install -e ".[dev,ml]"` and optional `.[faiss]`.
 - Validation: run `pytest -q`.
 - Quality baseline: run `python scripts/rag_baseline.py`.
+- Real corpus eval: run `python scripts/rag_real_corpus_eval.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --threshold-recall 0.75 --threshold-ndcg 0.70 --threshold-p95-ms 120`.
 - Persistence: verify `VectorIndex.save/load` on your own embeddings snapshot.
 - Performance: run benchmark script with your target `n`, `d`, `nq`, `k`.
 - Integration: run `python examples/minimal_rag_integration.py`.
+
+## v0.2-alpha feature preview
+
+- `kmeans` now returns richer outputs (`labels`, `centers`, `inertia`, `n_iter`).
+- Hard-negative mining supports `top1`, `topk_sample`, and `distance_band`, plus `exclude_ids` / `exclude_mask`.
+- Retrieval evaluation includes `retrieval_report_detailed(include_per_query=...)` and `batch_metrics_summary(include_std=True)`.
+- Public demo bootstrap is available under `demo_repo_template/`.
 
 ## Error cases
 
