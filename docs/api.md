@@ -16,6 +16,7 @@
 - `vector_engine.ml.knn_classify`
 - `vector_engine.ml.knn_regress`
 - `vector_engine.ml.kmeans`
+- `vector_engine.ml.KMeansResult`
 
 ## Retrieval Evaluation
 
@@ -23,6 +24,8 @@
 - `vector_engine.eval.recall_at_k`
 - `vector_engine.eval.ndcg_at_k`
 - `vector_engine.eval.retrieval_report`
+- `vector_engine.eval.retrieval_report_detailed`
+- `vector_engine.eval.batch_metrics_summary`
 
 ## Training Helpers
 
@@ -31,4 +34,6 @@
 ## Scripts and Integration
 
 - `scripts/rag_baseline.py` (reproducible exact-first RAG baseline + artifact output)
+- `scripts/rag_real_corpus_eval.py` (real-corpus evaluation and quality/latency gates)
+- `scripts/stability_runs.py` (multi-run stability harness with JSONL run traces + aggregate summary)
 - `examples/minimal_rag_integration.py` (drop-in retrieval example for application code)
