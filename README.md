@@ -23,7 +23,7 @@ pip install -e ".[dev,ml]"
 pip install -e ".[faiss]"
 ```
 
-## API contracts (v0.3.0)
+## API contracts (v1.0 target)
 
 - `VectorArray` accepts only 2D arrays with shape `(n, d)` where `n > 0` and `d > 0`.
 - `VectorArray` IDs must be unique and must be `int` or `str`.
@@ -90,6 +90,18 @@ With exact-overlap gate and artifact output:
 python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/benchmark_exact.json
 ```
 
+Benchmark matrix (publishable aggregate):
+
+```bash
+python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --min-flat-overlap 0.99 --output-dir artifacts/benchmark_matrix
+```
+
+Compose publishable summary bundle:
+
+```bash
+python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
+```
+
 ANN mode (optional):
 
 ```bash
@@ -109,6 +121,7 @@ Recommended protocol for publishable results:
 - Warm up before timed runs.
 - Run at least 3 repeated trials and report median numbers.
 - Keep dataset size (`n`, `d`, `nq`, `k`) fixed across backend comparisons.
+- Include machine-readable matrix summary artifacts in release evidence.
 
 ## Validation snapshot
 
@@ -126,6 +139,9 @@ Artifacts produced in this repo:
   - `artifacts/testing_runs/stability_runs_bruteforce_200.jsonl`
   - `artifacts/testing_runs/stability_summary_bruteforce_200.json`
   - `artifacts/testing_runs/stability_plot_p95_qps.png`
+- Matrix benchmark summary:
+  - `artifacts/benchmark_matrix/matrix_summary.json`
+  - `artifacts/benchmark_matrix/publishable_results.v1.json`
 
 Observed outcomes for current mock/public-safe corpus:
 
@@ -212,6 +228,8 @@ python scripts/rag_baseline.py --output-dir artifacts --k 3
 python scripts/rag_real_corpus_eval.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --output artifacts/real_corpus_runs/run_1.json --backend bruteforce --k 10 --ks 1,5,10 --loops 5
 python scripts/stability_runs.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --backend bruteforce --run-count 200 --output-dir artifacts/testing_runs
 python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/faiss_equivalence/run_1.json
+python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --min-flat-overlap 0.99 --output-dir artifacts/benchmark_matrix
+python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
 ```
 
 Expected artifacts:
@@ -220,6 +238,8 @@ Expected artifacts:
 - `artifacts/real_corpus_runs/run_*.json`
 - `artifacts/testing_runs/stability_summary_*.json`
 - `artifacts/faiss_equivalence/run_*.json`
+- `artifacts/benchmark_matrix/matrix_summary.json`
+- `artifacts/benchmark_matrix/publishable_results.v1.json`
 
 Further reading:
 
@@ -256,6 +276,13 @@ Further reading:
 - Hard-negative mining supports `top1`, `topk_sample`, and `distance_band`, plus `exclude_ids` / `exclude_mask`.
 - Retrieval evaluation includes `retrieval_report_detailed(include_per_query=...)` and `batch_metrics_summary(include_std=True)`.
 - Public demo bootstrap is available under `demo_repo_template/`.
+
+## v1.0 readiness gates
+
+- Benchmark matrix artifacts produced with fixed protocol and environment metadata.
+- Stability harness demonstrates repeatability for latency/QPS/quality summaries.
+- API stability contract documented in `docs/api.md` and enforced in `tests/test_api_stability.py`.
+- Release packaging includes reproducible command blocks and artifact policy.
 
 ## Error cases
 
