@@ -1,4 +1,4 @@
-# API Reference (v0.1)
+# API Reference (v0.3.0)
 
 ## Core
 
@@ -37,3 +37,8 @@
 - `scripts/rag_real_corpus_eval.py` (real-corpus evaluation and quality/latency gates)
 - `scripts/stability_runs.py` (multi-run stability harness with JSONL run traces + aggregate summary)
 - `examples/minimal_rag_integration.py` (drop-in retrieval example for application code)
+
+## Integration Docs
+
+- `docs/integration_guides.md` (local RAG, batch eval, benchmark interpretation)
+- `docs/reproducibility.md` (standard command workflow + artifact policy)
