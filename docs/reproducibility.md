@@ -28,6 +28,26 @@ python scripts/stability_runs.py --embeddings ... --query-embeddings ... --ids .
 python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/faiss_equivalence/run_1.json
 ```
 
+1. Benchmark matrix report (publishable aggregate):
+
+```bash
+python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --min-flat-overlap 0.99 --output-dir artifacts/benchmark_matrix
+```
+
+1. Publishable summary bundle:
+
+```bash
+python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
+```
+
+## Canonical protocol
+
+- fixed random seed for all benchmark families (`seed=7` by default)
+- warmup loops before timing (`warmup=2` baseline)
+- timed loops (`loops=8` baseline, increase for stricter studies)
+- fixed matrix definitions for cross-release comparability
+- always include hardware/runtime metadata in benchmark artifacts
+
 ## Standard artifact locations
 
 - Baseline: `artifacts/rag_baseline_metrics.v1.json`
@@ -35,6 +55,9 @@ python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap
 - Stability traces: `artifacts/testing_runs/stability_runs_*.jsonl`
 - Stability summaries: `artifacts/testing_runs/stability_summary_*.json`
 - Exact-equivalence: `artifacts/faiss_equivalence/run_*.json`
+- Matrix per-config reports: `artifacts/benchmark_matrix/*.json`
+- Matrix aggregate summary: `artifacts/benchmark_matrix/matrix_summary.json`
+- Publishable summary bundle: `artifacts/benchmark_matrix/publishable_results.v1.json`
 
 ## Publish/private policy
 
