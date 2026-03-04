@@ -42,3 +42,14 @@
 
 - `docs/integration_guides.md` (local RAG, batch eval, benchmark interpretation)
 - `docs/reproducibility.md` (standard command workflow + artifact policy)
+
+## v1.0 Stability Contract
+
+The following public surfaces are treated as stability-critical for v1.0:
+
+- `vector_engine.VectorArray`, `vector_engine.Metric`, `vector_engine.VectorIndex`
+- `vector_engine.ml.kmeans`, `vector_engine.ml.knn_classify`, `vector_engine.ml.knn_regress`
+- `vector_engine.training.mine_hard_negatives`
+- `vector_engine.eval.retrieval_report`, `retrieval_report_detailed`, `batch_metrics_summary`
+
+Compatibility checks are enforced with regression tests in `tests/test_api_stability.py`.
