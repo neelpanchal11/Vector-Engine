@@ -22,6 +22,14 @@ python examples/benchmark_demo.py
 
 Expected setup time: ~10-15 minutes on a clean machine.
 
+## Public-repo publish checklist
+
+1. Copy this folder into a new repository.
+2. Rename this README title and add your project/repo URL.
+3. Keep `examples/` as-is for first publish, then swap in your own embeddings/workflows.
+4. Run `python scripts/verify_quickstart.py` before first release.
+5. Attach one sample output file under `artifacts/`.
+
 ## Why not Faiss directly?
 
 Faiss is excellent for search performance, but this demo highlights where Vector Engine adds value:
@@ -39,6 +47,7 @@ Faiss is excellent for search performance, but this demo highlights where Vector
 - `examples/benchmark_demo.py`
 - `artifacts/sample_report.json`
 - `requirements.txt`
+- `scripts/verify_quickstart.py`
 
 ## Sample benchmark interpretation
 
@@ -59,3 +68,20 @@ Item similarity demo (abbreviated):
 query item: item-0
 neighbors: ['item-2', 'item-1', 'item-4']
 ```
+
+Benchmark demo (abbreviated):
+
+```text
+"backend": "bruteforce"
+"backend": "faiss_flat"
+"overlap_vs_bruteforce": 1.0
+```
+
+## Troubleshooting
+
+- `ModuleNotFoundError: vector_engine`
+  - Verify `pip install -r requirements.txt` completed in your active virtualenv.
+- `faiss unavailable`
+  - Install Faiss support (`pip install faiss-cpu`) or run demos without Faiss-specific claims.
+- Unexpectedly low QPS
+  - Rerun with the same seed/config and no heavy background workloads.

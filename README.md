@@ -23,7 +23,7 @@ pip install -e ".[dev,ml]"
 pip install -e ".[faiss]"
 ```
 
-## API contracts (v0.2-alpha)
+## API contracts (v0.3.0)
 
 - `VectorArray` accepts only 2D arrays with shape `(n, d)` where `n > 0` and `d > 0`.
 - `VectorArray` IDs must be unique and must be `int` or `str`.
@@ -110,7 +110,7 @@ Recommended protocol for publishable results:
 - Run at least 3 repeated trials and report median numbers.
 - Keep dataset size (`n`, `d`, `nq`, `k`) fixed across backend comparisons.
 
-## Track B validation snapshot
+## Validation snapshot
 
 Artifacts produced in this repo:
 
@@ -163,6 +163,83 @@ Example result table format:
 | faiss_flat | ... | ... | ... | ... |
 | faiss_ivf (optional) | ... | ... | ... | ... |
 
+## Integration quickstarts
+
+### Local RAG app path
+
+```bash
+pip install -e ".[dev,ml]"
+python examples/minimal_rag_integration.py
+```
+
+### Batch evaluation path
+
+```bash
+python scripts/rag_real_corpus_eval.py \
+  --embeddings artifacts/real_corpus_inputs/embeddings.npy \
+  --query-embeddings artifacts/real_corpus_inputs/query_embeddings.npy \
+  --ids artifacts/real_corpus_inputs/ids.json \
+  --ground-truth artifacts/real_corpus_inputs/ground_truth.json \
+  --metadata artifacts/real_corpus_inputs/metadata.json \
+  --output artifacts/real_corpus_runs/run_1.json \
+  --backend bruteforce \
+  --k 6 \
+  --ks 1,3,6 \
+  --loops 5 \
+  --threshold-recall 0.75 \
+  --threshold-ndcg 0.70 \
+  --threshold-p95-ms 120
+```
+
+### Benchmark interpretation path
+
+```bash
+python benchmarks/compare_bruteforce_vs_faiss.py \
+  --mode exact \
+  --min-flat-overlap 0.99 \
+  --output artifacts/faiss_equivalence/run_1.json
+```
+
+- If `overlap_vs_bruteforce` is near `1.0`, approximation risk is low for that configuration.
+- Use `latency_p95_ms` for user-facing SLO decisions.
+- Use repeated runs + median values before publishing backend comparisons.
+
+### Minimal production path (copy-paste)
+
+```bash
+pip install -e ".[dev,ml]"
+python scripts/rag_baseline.py --output-dir artifacts --k 3
+python scripts/rag_real_corpus_eval.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --output artifacts/real_corpus_runs/run_1.json --backend bruteforce --k 10 --ks 1,5,10 --loops 5
+python scripts/stability_runs.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --backend bruteforce --run-count 200 --output-dir artifacts/testing_runs
+python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/faiss_equivalence/run_1.json
+```
+
+Expected artifacts:
+
+- `artifacts/rag_baseline_metrics.v1.json`
+- `artifacts/real_corpus_runs/run_*.json`
+- `artifacts/testing_runs/stability_summary_*.json`
+- `artifacts/faiss_equivalence/run_*.json`
+
+Further reading:
+
+- `docs/integration_guides.md`
+- `docs/reproducibility.md`
+
+## Artifact policy (publish vs private)
+
+- Safe to publish:
+  - benchmark result summaries
+  - stability aggregate summaries
+  - synthetic/mock input examples
+- Keep private:
+  - real corpus raw embeddings
+  - query embeddings derived from private data
+  - sensitive metadata and ID mappings
+- Recommended:
+  - commit docs + summary metrics in repo
+  - keep private input blobs in external storage
+
 ## Project adoption checklist
 
 - Install: `pip install -e ".[dev,ml]"` and optional `.[faiss]`.
@@ -173,9 +250,9 @@ Example result table format:
 - Performance: run benchmark script with your target `n`, `d`, `nq`, `k`.
 - Integration: run `python examples/minimal_rag_integration.py`.
 
-## v0.2-alpha feature preview
+## Feature snapshot
 
-- `kmeans` now returns richer outputs (`labels`, `centers`, `inertia`, `n_iter`).
+- `kmeans` returns rich outputs (`labels`, `centers`, `inertia`, `n_iter`) with deterministic validation.
 - Hard-negative mining supports `top1`, `topk_sample`, and `distance_band`, plus `exclude_ids` / `exclude_mask`.
 - Retrieval evaluation includes `retrieval_report_detailed(include_per_query=...)` and `batch_metrics_summary(include_std=True)`.
 - Public demo bootstrap is available under `demo_repo_template/`.

@@ -5,12 +5,16 @@ import sys
 
 import numpy as np
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
-
-from vector_engine import VectorArray, VectorIndex
-from vector_engine.eval import retrieval_report
+try:
+    from vector_engine import VectorArray, VectorIndex
+    from vector_engine.eval import retrieval_report
+except ModuleNotFoundError:
+    # Fallback for monorepo usage before package installation.
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from vector_engine import VectorArray, VectorIndex
+    from vector_engine.eval import retrieval_report
 
 
 def main() -> None:
