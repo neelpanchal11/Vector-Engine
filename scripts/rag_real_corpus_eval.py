@@ -18,6 +18,9 @@ if __package__ is None or __package__ == "":
 
 from vector_engine import VectorArray, VectorIndex
 from vector_engine.eval import retrieval_report
+from scripts.artifact_contracts import validate_real_corpus_payload
+
+ARTIFACT_CONTRACT_VERSION = "1.0"
 
 
 def _parse_ks(raw: str) -> tuple[int, ...]:
@@ -129,7 +132,9 @@ def evaluate_real_corpus(
             "ground_truth_path": ground_truth_path,
             "metadata_path": metadata_path,
         },
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
+    validate_real_corpus_payload(payload)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
