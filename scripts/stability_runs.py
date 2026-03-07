@@ -17,6 +17,9 @@ if __package__ is None or __package__ == "":
         sys.path.insert(0, repo_root)
 
 from scripts.rag_real_corpus_eval import evaluate_real_corpus, _parse_ks
+from scripts.artifact_contracts import validate_real_corpus_payload, validate_stability_summary
+
+ARTIFACT_CONTRACT_VERSION = "1.0"
 
 
 def _stats(values: list[float]) -> dict[str, float]:
@@ -80,6 +83,7 @@ def run_stability_study(
                     threshold_ndcg=threshold_ndcg,
                     threshold_p95_ms=threshold_p95_ms,
                 )
+                validate_real_corpus_payload(payload)
                 row = {
                     "run_index": run_idx,
                     "metrics": payload["metrics"],
@@ -141,7 +145,9 @@ def run_stability_study(
             "metadata_path": metadata_path,
         },
         "runs_path": out_runs_path,
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
+    validate_stability_summary(summary)
 
     with open(out_summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)

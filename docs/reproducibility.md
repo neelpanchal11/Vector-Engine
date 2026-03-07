@@ -47,6 +47,33 @@ python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matri
 - timed loops (`loops=8` baseline, increase for stricter studies)
 - fixed matrix definitions for cross-release comparability
 - always include hardware/runtime metadata in benchmark artifacts
+- enforce artifact contract validation via `artifact_contract_version`
+
+## Artifact contract checks
+
+All reproducibility scripts now emit `artifact_contract_version` and validate required fields/types before writing publishable artifacts.
+
+Contract validators live in:
+
+- `scripts/artifact_contracts.py`
+
+Validated outputs:
+
+- real-corpus evaluation report
+- benchmark per-run reports
+- benchmark matrix summary
+- stability summary
+- publishable summary bundle
+
+## One-command clean-environment smoke run
+
+Use this command to verify end-to-end pipeline behavior on synthetic public-safe inputs:
+
+```bash
+python scripts/repro_smoke.py --output-dir artifacts/repro_smoke
+```
+
+This command generates synthetic embeddings/query sets, runs baseline/eval/stability/benchmark/matrix/publishable composition, and validates all artifact contracts.
 
 ## Standard artifact locations
 

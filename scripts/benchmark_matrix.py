@@ -11,6 +11,15 @@ from typing import Any
 
 import numpy as np
 
+if __package__ is None or __package__ == "":
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+
+from scripts.artifact_contracts import validate_benchmark_report, validate_matrix_summary
+
+ARTIFACT_CONTRACT_VERSION = "1.0"
+
 
 DEFAULT_MATRIX = [
     {"name": "s_small", "n": 5000, "d": 64, "nq": 100, "k": 10},
@@ -88,6 +97,7 @@ def run_matrix(
         subprocess.check_call(cmd)
         with open(out_path, "r", encoding="utf-8") as f:
             payload = json.load(f)
+        validate_benchmark_report(payload)
         rows.append(payload)
 
     by_backend: dict[str, dict[str, list[float]]] = {}
@@ -131,7 +141,9 @@ def run_matrix(
         "matrix": matrix,
         "backend_summary": summary_backends,
         "runs_dir": out_dir,
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
+    validate_matrix_summary(summary)
     summary_path = os.path.join(out_dir, "matrix_summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)

@@ -245,6 +245,20 @@ Further reading:
 
 - `docs/integration_guides.md`
 - `docs/reproducibility.md`
+- `docs/kpi_charter.md`
+- `docs/research_claims.md`
+- `docs/credibility_audit.md`
+- `docs/limitations.md`
+- `docs/releases/v1.0.0.md`
+- `docs/paper/reproducibility_appendix.md`
+
+## Publication and release bundle
+
+Generate a release-bundle manifest that checks required docs/governance/evidence files:
+
+```bash
+python scripts/build_release_bundle.py --output-dir artifacts/release_bundle
+```
 
 ## Artifact policy (publish vs private)
 
@@ -283,6 +297,11 @@ Further reading:
 - Stability harness demonstrates repeatability for latency/QPS/quality summaries.
 - API stability contract documented in `docs/api.md` and enforced in `tests/test_api_stability.py`.
 - Release packaging includes reproducible command blocks and artifact policy.
+
+## Governance and trust
+
+- `LICENSE`
+- `CITATION.cff`
 
 ## Error cases
 

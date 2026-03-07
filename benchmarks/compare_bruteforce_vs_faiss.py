@@ -14,6 +14,9 @@ if __package__ is None or __package__ == "":
         sys.path.insert(0, repo_root)
 
 from vector_engine import VectorArray, VectorIndex
+from scripts.artifact_contracts import validate_benchmark_report
+
+ARTIFACT_CONTRACT_VERSION = "1.0"
 
 
 def overlap_at_k(reference: np.ndarray, candidate: np.ndarray, k: int) -> float:
@@ -178,6 +181,7 @@ def main() -> None:
             "processor": platform.processor(),
         },
         "results": rows,
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
     if args.min_flat_overlap is not None:
         flat_rows = [r for r in rows if r["backend"] == "faiss_flat"]
@@ -190,9 +194,11 @@ def main() -> None:
         elif args.mode == "exact":
             raise RuntimeError("benchmark_error: faiss_flat unavailable; cannot enforce overlap gate")
     if args.output:
+        validate_benchmark_report(summary)
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
         with open(args.output, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
+    validate_benchmark_report(summary)
     print(json.dumps(summary, indent=2))
 
 if __name__ == "__main__":

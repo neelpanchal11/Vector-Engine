@@ -3,8 +3,22 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Any
+
+if __package__ is None or __package__ == "":
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+
+from scripts.artifact_contracts import (
+    validate_matrix_summary,
+    validate_publishable_summary,
+    validate_stability_summary,
+)
+
+ARTIFACT_CONTRACT_VERSION = "1.0"
 
 
 def _read_json(path: str) -> dict[str, Any]:
@@ -20,6 +34,8 @@ def build_publishable_summary(
 ) -> dict[str, Any]:
     matrix = _read_json(matrix_summary_path)
     stability = _read_json(stability_summary_path)
+    validate_matrix_summary(matrix)
+    validate_stability_summary(stability)
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "sources": {
@@ -37,7 +53,9 @@ def build_publishable_summary(
             "matrix": matrix.get("environment", {}),
             "stability": stability.get("environment", {}),
         },
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
+    validate_publishable_summary(payload)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
