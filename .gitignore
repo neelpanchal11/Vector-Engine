@@ -32,7 +32,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
-.cursor/
 
 # Project-generated artifacts
 artifacts/
