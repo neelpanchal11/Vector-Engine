@@ -41,6 +41,50 @@ def test_real_corpus_eval_writes_report(tmp_path):
     assert payload["metrics"]["recall@1"] >= 0.66
     assert len(payload["topk_ids"]) == 3
     assert payload["runtime_seconds"] >= 0.0
+    assert "detailed_metrics" in payload
+    assert "error_buckets" in payload["detailed_metrics"]
+
+
+def test_real_corpus_eval_cohorts_and_per_query(tmp_path):
+    rng = np.random.default_rng(2)
+    xb = rng.normal(size=(10, 12)).astype(np.float32)
+    xq = xb[:4] + 0.01 * rng.normal(size=(4, 12)).astype(np.float32)
+    ids = [f"doc-{i}" for i in range(10)]
+    gt = [[ids[i]] for i in range(4)]
+    cohorts = ["easy", "easy", "hard", "hard"]
+
+    emb_path = tmp_path / "emb.npy"
+    q_path = tmp_path / "q.npy"
+    ids_path = tmp_path / "ids.json"
+    gt_path = tmp_path / "gt.json"
+    cohorts_path = tmp_path / "cohorts.json"
+    out_path = tmp_path / "report.json"
+    np.save(emb_path, xb)
+    np.save(q_path, xq)
+    ids_path.write_text(json.dumps(ids), encoding="utf-8")
+    gt_path.write_text(json.dumps(gt), encoding="utf-8")
+    cohorts_path.write_text(json.dumps(cohorts), encoding="utf-8")
+
+    payload = evaluate_real_corpus(
+        embeddings_path=str(emb_path),
+        query_embeddings_path=str(q_path),
+        ids_path=str(ids_path),
+        ground_truth_path=str(gt_path),
+        metadata_path=None,
+        output_path=str(out_path),
+        backend="bruteforce",
+        k=4,
+        ks=(1, 4),
+        loops=1,
+        threshold_recall=None,
+        threshold_ndcg=None,
+        threshold_p95_ms=None,
+        include_per_query=True,
+        query_cohorts_path=str(cohorts_path),
+    )
+    assert "per_query" in payload["detailed_metrics"]
+    assert "cohort_metrics" in payload
+    assert "easy" in payload["cohort_metrics"]["per_cohort"]
 
 
 def test_real_corpus_eval_validates_alignment(tmp_path):

@@ -10,10 +10,26 @@ def _write(path, payload):
 def test_credibility_audit_runs(tmp_path):
     matrix = {
         "timestamp_utc": "2026-01-01T00:00:00+00:00",
-        "protocol": {"mode": "exact", "min_flat_overlap": 0.99},
+        "protocol": {
+            "profile": "dev",
+            "mode": "exact",
+            "warmup": 2,
+            "loops": 8,
+            "seed": 7,
+            "min_flat_overlap": None,
+            "max_memory_mb": 1024.0,
+            "matrix_size": 1,
+        },
         "environment": {},
-        "matrix": [{"name": "smoke"}],
-        "backend_summary": {"bruteforce": {}},
+        "matrix": [{"name": "smoke", "n": 1000, "d": 32, "nq": 64, "k": 10}],
+        "backend_summary": {
+            "bruteforce": {
+                "latency_p50_ms": {"mean": 1.0, "median": 1.0, "min": 1.0, "max": 1.0},
+                "latency_p95_ms": {"mean": 2.0, "median": 2.0, "min": 2.0, "max": 2.0},
+                "qps": {"mean": 100.0, "median": 100.0, "min": 95.0, "max": 105.0},
+                "overlap_vs_bruteforce": {"mean": 1.0, "median": 1.0, "min": 1.0, "max": 1.0},
+            }
+        },
         "runs_dir": "artifacts/benchmark_matrix",
         "artifact_contract_version": "1.0",
     }
@@ -21,7 +37,7 @@ def test_credibility_audit_runs(tmp_path):
         "timestamp_utc": "2026-01-01T00:00:00+00:00",
         "run_count": 2,
         "backend": "bruteforce",
-        "config": {},
+        "config": {"backend": "bruteforce", "k": 10, "loops": 5, "run_count": 2},
         "environment": {},
         "performance_summary": {
             "latency_p50_ms": {"mean": 1.0, "median": 1.0, "std": 0.0, "cv": 0.0, "p02_5": 1.0, "p97_5": 1.0, "min": 1.0, "max": 1.0},
@@ -36,12 +52,18 @@ def test_credibility_audit_runs(tmp_path):
     }
     publishable = {
         "generated_at_utc": "2026-01-01T00:00:00+00:00",
-        "sources": {},
-        "matrix_backend_summary": {},
-        "stability_performance_summary": {},
-        "stability_metric_summary": {},
-        "protocol": {},
-        "environment": {},
+        "sources": {
+            "matrix_summary_path": "artifacts/benchmark_matrix/matrix_summary.json",
+            "stability_summary_path": "artifacts/testing_runs/stability_summary_bruteforce_200.json",
+        },
+        "matrix_backend_summary": matrix["backend_summary"],
+        "stability_performance_summary": stability["performance_summary"],
+        "stability_metric_summary": stability["metric_summary"],
+        "protocol": {
+            "matrix_protocol": matrix["protocol"],
+            "stability_config": stability["config"],
+        },
+        "environment": {"matrix": {}, "stability": {}},
         "artifact_contract_version": "1.0",
     }
     real = {
@@ -77,4 +99,6 @@ def test_credibility_audit_runs(tmp_path):
         output_path=str(out_path),
     )
     assert report["status"] == "pass"
+    optional = [c for c in report["checks"] if c["check"] == "optional_faiss_disclosure"]
+    assert optional and optional[0]["status"] == "pass"
     assert out_path.exists()

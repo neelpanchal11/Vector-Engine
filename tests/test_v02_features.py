@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from vector_engine import VectorArray, VectorIndex
-from vector_engine.eval import batch_metrics_summary, retrieval_report_detailed
+from vector_engine.eval import batch_metrics_summary, retrieval_cohort_report, retrieval_report_detailed
 from vector_engine.ml import kmeans
 from vector_engine.training import mine_hard_negatives
 
@@ -89,6 +89,33 @@ def test_hard_negative_validates_strategy_parameters():
         mine_hard_negatives(index, anchors, positives=positives, strategy="distance_band", distance_band=(2, 2))
 
 
+def test_hard_negative_topk_sample_is_seeded_and_stable():
+    xb = VectorArray.from_numpy(np.random.randn(40, 16).astype(np.float32), ids=np.arange(40), normalize=True)
+    index = VectorIndex.create(xb, metric="cosine", backend="bruteforce")
+    anchors = xb.subset([0, 1, 2, 3, 4, 5])
+    positives = np.asarray([0, 1, 2, 3, 4, 5], dtype=object)
+    run_a = mine_hard_negatives(
+        index,
+        anchors,
+        positives=positives,
+        k=10,
+        strategy="topk_sample",
+        topk_sample_size=4,
+        random_state=19,
+    )
+    run_b = mine_hard_negatives(
+        index,
+        anchors,
+        positives=positives,
+        k=10,
+        strategy="topk_sample",
+        topk_sample_size=4,
+        random_state=19,
+    )
+    assert np.array_equal(run_a.negatives, run_b.negatives)
+    assert np.allclose(run_a.negative_scores, run_b.negative_scores)
+
+
 def test_eval_detailed_and_batch_summary():
     retrieved = np.array([["a", "b", "c"], ["m", "n", "o"]], dtype=object)
     gt = [["a", "z"], ["x", "n"]]
@@ -115,3 +142,21 @@ def test_eval_validation_on_malformed_inputs():
         retrieval_report_detailed(retrieved, ["abc"], ks=(1,))  # type: ignore[list-item]
     with pytest.raises(ValueError, match="eval_error"):
         retrieval_report_detailed(retrieved, [["a"]], ks=(3,))
+
+
+def test_eval_cohort_report_shapes_and_counts():
+    retrieved = np.array([["a", "b"], ["x", "y"], ["m", "n"]], dtype=object)
+    gt = [["a"], ["z"], ["m"]]
+    cohorts = ["head", "tail", "tail"]
+    report = retrieval_cohort_report(retrieved, gt, cohorts, ks=(1, 2))
+    assert set(report.keys()) == {"overall", "cohort_sizes", "per_cohort"}
+    assert report["cohort_sizes"]["head"] == 1
+    assert report["cohort_sizes"]["tail"] == 2
+    assert "recall@1" in report["overall"]
+
+
+def test_eval_cohort_report_validates_input_lengths():
+    retrieved = np.array([["a", "b"], ["x", "y"]], dtype=object)
+    gt = [["a"], ["x"]]
+    with pytest.raises(ValueError, match="eval_error"):
+        retrieval_cohort_report(retrieved, gt, ["only_one"], ks=(1, 2))

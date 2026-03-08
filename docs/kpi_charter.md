@@ -49,3 +49,22 @@ python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matri
 - Week 0: baseline capture and KPI target lock.
 - Every 2 weeks: KPI review with pass/fail states and corrective actions.
 - Release gate: all Tier 1 KPIs must pass or be explicitly disclosed as exceptions in release notes.
+
+## Milestone release cadence (post-v1)
+
+- `v1.x.y` patch cadence: as-needed bugfix releases after contract-safe fixes.
+- `v1.(x+1).0` minor cadence: every 4-6 weeks, only after evidence gates pass.
+
+Required evidence package before each minor release:
+
+1. targeted tests and API stability checks
+2. benchmark matrix summary (`profile=medium` at minimum)
+3. stability summary with CV fields
+4. credibility audit report status `pass`
+5. release bundle manifest with `ready_for_submission=true`
+
+Do not cut a minor release when:
+
+- any Tier 1 KPI fails without explicit waiver in release notes,
+- artifact contracts fail validation,
+- public API compatibility tests regress.

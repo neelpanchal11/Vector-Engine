@@ -6,7 +6,7 @@ This document defines publishable claims, evidence requirements, and acceptance 
 
 Vector Engine provides a reproducible pipeline for retrieval quality evaluation across repeated runs with explicit input validation and machine-readable outputs.
 
-### Evidence mapping
+### Evidence mapping (Claim 1)
 
 | Component | Source |
 | --- | --- |
@@ -15,7 +15,7 @@ Vector Engine provides a reproducible pipeline for retrieval quality evaluation 
 | Stability harness | `scripts/stability_runs.py` |
 | Stability artifact | `artifacts/testing_runs/stability_summary_*.json` |
 
-### Metrics and criteria
+### Metrics and criteria (Claim 1)
 
 - Quality metrics: `precision@k`, `recall@k`, `ndcg@k`.
 - Repeated-run reliability: coefficient of variation (`cv`) on quality and performance metrics.
@@ -27,11 +27,11 @@ Acceptance criteria:
 - Repeated-run summaries include `mean`, `std`, `cv`, and interval bands.
 - Script outputs validate against artifact contract checks.
 
-## Claim 2: Transparent exact-vs-ANN quality/performance tradeoff analysis
+## Claim 2: Transparent exact-vs-ANN quality/performance tradeoff analysis (optional Faiss path)
 
-Vector Engine enables reproducible, protocol-controlled backend comparison with quality overlap gates and tail-latency reporting.
+Vector Engine enables reproducible, protocol-controlled backend comparison with quality overlap gates and tail-latency reporting when Faiss is available.
 
-### Evidence mapping
+### Evidence mapping (Claim 2)
 
 | Component | Source |
 | --- | --- |
@@ -40,7 +40,7 @@ Vector Engine enables reproducible, protocol-controlled backend comparison with 
 | Publishable summary | `scripts/publishable_results.py` |
 | Benchmark artifacts | `artifacts/benchmark_matrix/*.json` |
 
-### Metrics and criteria
+### Metrics and criteria (Claim 2)
 
 - Performance: `qps`, `latency_p50_ms`, `latency_p95_ms`.
 - Quality retention: `overlap_vs_bruteforce`.
@@ -48,7 +48,8 @@ Vector Engine enables reproducible, protocol-controlled backend comparison with 
 
 Acceptance criteria:
 
-- Exact mode enforces `overlap_vs_bruteforce >= 0.99` for `faiss_flat` when gate is enabled.
+- When Faiss is available and gate is enabled, exact mode enforces `overlap_vs_bruteforce >= 0.99` for `faiss_flat`.
+- When Faiss is unavailable, bruteforce-only artifacts remain the required reproducibility path and optional Faiss claims are omitted.
 - Matrix reports include protocol and environment metadata.
 - Publishable summary links to source artifacts with contract validation.
 
@@ -56,7 +57,7 @@ Acceptance criteria:
 
 Vector Engine exposes a stable API for core retrieval workflows, while preserving consistent error taxonomy and persistence compatibility expectations.
 
-### Evidence mapping
+### Evidence mapping (Claim 3)
 
 | Component | Source |
 | --- | --- |
@@ -65,7 +66,7 @@ Vector Engine exposes a stable API for core retrieval workflows, while preservin
 | Core compatibility tests | `tests/test_core.py`, `tests/test_persistence_compat.py` |
 | Error taxonomy docs | `docs/concepts.md` |
 
-### Metrics and criteria
+### Metrics and criteria (Claim 3)
 
 - API stability: required signatures remain unchanged within v1 minor releases.
 - Compatibility: persistence load checks and checksum validation pass.

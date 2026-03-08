@@ -113,6 +113,8 @@ def run_smoke(output_dir: str) -> dict[str, str]:
         seed=7,
         min_flat_overlap=None,
         out_dir=str(root / "benchmark_matrix"),
+        profile="dev",
+        max_memory_mb=512.0,
     )
     validate_matrix_summary(matrix)
 

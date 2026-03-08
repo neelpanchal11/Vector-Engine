@@ -48,6 +48,70 @@ def _check_no_sensitive_paths(payload: dict[str, Any], *, field: str) -> dict[st
     return _status("sensitive_path_scan", ok, detail, severity="warn")
 
 
+def _check_protocol_consistency(matrix: dict[str, Any], stability: dict[str, Any], publishable: dict[str, Any]) -> list[dict[str, str]]:
+    checks: list[dict[str, str]] = []
+    matrix_protocol = matrix.get("protocol", {}) if isinstance(matrix.get("protocol"), dict) else {}
+    publishable_protocol = publishable.get("protocol", {}) if isinstance(publishable.get("protocol"), dict) else {}
+    pub_matrix_protocol = (
+        publishable_protocol.get("matrix_protocol", {})
+        if isinstance(publishable_protocol.get("matrix_protocol"), dict)
+        else {}
+    )
+    pub_stability_config = (
+        publishable_protocol.get("stability_config", {})
+        if isinstance(publishable_protocol.get("stability_config"), dict)
+        else {}
+    )
+    stability_config = stability.get("config", {}) if isinstance(stability.get("config"), dict) else {}
+
+    mode_ok = pub_matrix_protocol.get("mode") == matrix_protocol.get("mode")
+    checks.append(
+        _status(
+            "protocol_mode_consistency",
+            mode_ok,
+            f"matrix.mode={matrix_protocol.get('mode')}, publishable.matrix_protocol.mode={pub_matrix_protocol.get('mode')}",
+        )
+    )
+    for key in ("seed", "warmup", "loops"):
+        if key in pub_matrix_protocol and key in matrix_protocol:
+            checks.append(
+                _status(
+                    f"protocol_{key}_consistency",
+                    pub_matrix_protocol.get(key) == matrix_protocol.get(key),
+                    f"matrix.{key}={matrix_protocol.get(key)}, publishable.matrix_protocol.{key}={pub_matrix_protocol.get(key)}",
+                    severity="warn",
+                )
+            )
+
+    if pub_stability_config:
+        stable_keys = ("backend", "k", "loops", "run_count")
+        for key in stable_keys:
+            if key in pub_stability_config and key in stability_config:
+                checks.append(
+                    _status(
+                        f"stability_{key}_consistency",
+                        pub_stability_config.get(key) == stability_config.get(key),
+                        f"stability.{key}={stability_config.get(key)}, publishable.stability_config.{key}={pub_stability_config.get(key)}",
+                        severity="warn",
+                    )
+                )
+    return checks
+
+
+def _check_optional_faiss_disclosure(matrix: dict[str, Any]) -> dict[str, str]:
+    protocol = matrix.get("protocol", {}) if isinstance(matrix.get("protocol"), dict) else {}
+    backend_summary = matrix.get("backend_summary", {}) if isinstance(matrix.get("backend_summary"), dict) else {}
+    has_faiss = any(name.startswith("faiss") for name in backend_summary.keys())
+    overlap_gate = protocol.get("min_flat_overlap")
+    mode = protocol.get("mode")
+    ok = has_faiss or overlap_gate is None or mode != "exact"
+    detail = (
+        f"has_faiss={has_faiss}, mode={mode}, min_flat_overlap={overlap_gate}; "
+        "faiss evidence optional when overlap gate is unset"
+    )
+    return _status("optional_faiss_disclosure", ok, detail, severity="warn")
+
+
 def run_audit(
     *,
     matrix_summary_path: str,
@@ -111,6 +175,8 @@ def run_audit(
     checks.append(_check_no_sensitive_paths(matrix, field="runs_dir"))
     checks.append(_check_no_sensitive_paths(stability, field="input_files"))
     checks.append(_check_no_sensitive_paths(publishable, field="sources"))
+    checks.extend(_check_protocol_consistency(matrix, stability, publishable))
+    checks.append(_check_optional_faiss_disclosure(matrix))
 
     if real_corpus_report_path is not None:
         real_report = _read_json(real_corpus_report_path)
