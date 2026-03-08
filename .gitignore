@@ -36,3 +36,6 @@ htmlcov/
 # Project-generated artifacts
 artifacts/
 
+
+# Cursor
+.cursor/
