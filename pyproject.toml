@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "ML-first vector computation and retrieval engine."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "Apache-2.0"
+license = "MIT"
 authors = [
   { name = "Neel Panchal" }
 ]
