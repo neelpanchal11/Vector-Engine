@@ -1,42 +1,65 @@
-# Vector Engine
+# Vector Engine v1.0.0
 
-ML-first vector computation and retrieval for Python.
+Reproducibility-first vector retrieval toolkit for local ML and IR workflows.
 
-Vector Engine provides one clean API for exact search, ANN backends, metadata-aware retrieval, and ML utilities such as kNN and retrieval metrics.
+Vector Engine provides a clean Python API for vector indexing/search, evaluation, training utilities, and evidence-oriented benchmarking on a single machine.
 
-## Why this exists
+## Why Vector Engine
 
-- ANN libraries are powerful but low-level and backend-specific.
-- Vector DBs solve infra and ops, but many ML workflows need fast local experimentation.
-- Existing ML APIs do not offer a unified, backend-pluggable vector layer for embedding-heavy work.
+- ANN libraries are fast but often backend-specific and low-level.
+- Vector databases focus on serving and infra, not local experimentation loops.
+- ML teams still need one local toolkit for ingest, retrieval, evaluation, and reproducibility.
 
-## Install
+Vector Engine focuses on that local workflow and keeps evidence outputs machine-checkable.
 
-```bash
-pip install -e .
-```
-
-Optional extras:
+## Start Here
 
 ```bash
-pip install -e ".[dev,ml]"
-pip install -e ".[faiss]"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip && python -m pip install vector-engine
 ```
 
-## API contracts (v1.0 target)
+## Install Options
 
-- `VectorArray` accepts only 2D arrays with shape `(n, d)` where `n > 0` and `d > 0`.
-- `VectorArray` IDs must be unique and must be `int` or `str`.
-- Metadata length must always align with number of vectors.
-- `VectorIndex.search(..., k=...)` requires `k` to be an integer `> 0`.
-- Score direction is explicit in `Metric.higher_is_better`:
-  - cosine/ip: higher is better
-  - l2: lower is better
-- `kmeans(..., random_state=...)` requires an integer seed and finite vectors.
-- `mine_hard_negatives` supports `top1`, `topk_sample`, and `distance_band` strategies with explicit exclusion controls.
-- Retrieval eval validates malformed ground-truth shapes/types with stable `eval_error` messages.
+PyPI:
 
-## 60-second quickstart
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install vector-engine
+```
+
+Local development:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -e ".[dev,ml]"
+python -m pytest -q
+```
+
+macOS arm64 + Python 3.12 constrained setup:
+
+```bash
+python3.12 -m venv .venv312
+source .venv312/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -c requirements/constraints-macos-arm64-py312.txt -e ".[dev,ml]"
+python -m pytest -q
+```
+
+Optional FAISS extra:
+
+```bash
+python -m pip install -e ".[faiss]"
+```
+
+If you hit `externally-managed-environment`, use a virtual environment as shown above.
+
+## 60-Second Quickstart
 
 ```python
 import numpy as np
@@ -50,153 +73,53 @@ xb = VectorArray.from_numpy(
 xq = VectorArray.from_numpy(np.random.randn(2, 384).astype("float32"), normalize=True)
 
 index = VectorIndex.create(xb, metric="cosine", backend="bruteforce")
-res = index.search(xq, k=5)
-print(res.ids[0], res.scores[0])
+results = index.search(xq, k=5)
+print(results.ids[0], results.scores[0])
 ```
 
-## Core API
+## v1.0.0 Surface
 
-- `VectorArray`: canonical vector storage with IDs and metadata.
-- `Metric`: built-in and custom metric definitions.
-- `VectorIndex`: backend-agnostic build/add/search/save/load.
-- `vector_engine.ml`: `knn_classify`, `knn_regress`, `kmeans`.
-- `vector_engine.training`: `mine_hard_negatives` with configurable sampling strategies.
-- `vector_engine.eval`: `precision_at_k`, `recall_at_k`, `ndcg_at_k`, `retrieval_report`, `retrieval_report_detailed`, `batch_metrics_summary`.
+- Core: `VectorArray`, `VectorIndex`, `Metric`, `SearchResult`
+- ML: `knn_classify`, `knn_regress`, `kmeans`, `KMeansResult`
+- Training: `mine_hard_negatives`, `TripletBatch`
+- Eval: `precision_at_k`, `recall_at_k`, `ndcg_at_k`, `retrieval_report`, `retrieval_report_detailed`, `batch_metrics_summary`, `retrieval_cohort_report`
+- Ingest/connectors: `load_numpy_bundle`, `load_jsonl_bundle`, `load_parquet_bundle`, `with_deterministic_splits`, `scripts/ingest_dataset.py`
 
-## Backend support matrix
+## API Contract Highlights
 
-| Backend | Search | Add | Save/Load | Custom Metric |
-| --- | ---: | ---: | ---: | ---: |
-| `bruteforce` | yes | yes | yes | yes |
-| `faiss` | yes | yes | yes | no |
+- `VectorArray` requires non-empty 2D tensors `(n, d)` and unique `int`/`str` IDs.
+- `VectorIndex.search(..., k=...)` requires positive integer `k`.
+- Metadata lengths align with vector row counts.
+- `kmeans(..., random_state=...)` validates finite vectors and deterministic seeds.
+- Retrieval evaluation validates malformed ground truth with stable `eval_error` prefixes.
 
-## Examples and notebooks
+## Data Ingest to Eval Recipe
 
-- `notebooks/01_semantic_search.ipynb`
-- `notebooks/02_knn_baseline.ipynb`
-- `notebooks/03_recommender_similarity.ipynb`
-
-## Benchmarks
-
-Run:
+1) Build a reproducible ingest bundle from JSONL:
 
 ```bash
-python benchmarks/compare_bruteforce_vs_faiss.py --mode exact
+python scripts/ingest_dataset.py \
+  --input-jsonl artifacts/raw/source.jsonl \
+  --output-dir artifacts/ingest_bundle \
+  --id-field id \
+  --text-field text \
+  --embedding-dim 256 \
+  --seed 7 \
+  --label-field label \
+  --split-field split \
+  --query-group-field query_group \
+  --ground-truth-field ground_truth
 ```
 
-With exact-overlap gate and artifact output:
-
-```bash
-python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/benchmark_exact.json
-```
-
-Benchmark matrix (publishable aggregate):
-
-```bash
-python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --min-flat-overlap 0.99 --output-dir artifacts/benchmark_matrix
-```
-
-Compose publishable summary bundle:
-
-```bash
-python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
-```
-
-ANN mode (optional):
-
-```bash
-python benchmarks/compare_bruteforce_vs_faiss.py --mode ann
-```
-
-The benchmark reports:
-
-- `qps`: queries per second (higher is better)
-- `latency_p50_ms` and `latency_p95_ms`: median and tail latency (lower is better)
-- `overlap_vs_bruteforce`: top-k neighbor overlap against exact brute-force (closer to `1.0` is better)
-- `memory_mb_estimate`: coarse in-process memory estimate for vector/query buffers
-
-Recommended protocol for publishable results:
-
-- Use fixed seed and fixed hardware notes.
-- Warm up before timed runs.
-- Run at least 3 repeated trials and report median numbers.
-- Keep dataset size (`n`, `d`, `nq`, `k`) fixed across backend comparisons.
-- Include machine-readable matrix summary artifacts in release evidence.
-
-## Validation snapshot
-
-Artifacts produced in this repo:
-
-- Real-corpus style 3-run reports:
-  - `artifacts/real_corpus_runs/run_1.json`
-  - `artifacts/real_corpus_runs/run_2.json`
-  - `artifacts/real_corpus_runs/run_3.json`
-- Faiss Flat exact-equivalence checks (3 runs):
-  - `artifacts/faiss_equivalence/run_1.json`
-  - `artifacts/faiss_equivalence/run_2.json`
-  - `artifacts/faiss_equivalence/run_3.json`
-- 200-run stability study:
-  - `artifacts/testing_runs/stability_runs_bruteforce_200.jsonl`
-  - `artifacts/testing_runs/stability_summary_bruteforce_200.json`
-  - `artifacts/testing_runs/stability_plot_p95_qps.png`
-- Matrix benchmark summary:
-  - `artifacts/benchmark_matrix/matrix_summary.json`
-  - `artifacts/benchmark_matrix/publishable_results.v1.json`
-
-Observed outcomes for current mock/public-safe corpus:
-
-- 3-run quality is identical across runs (`recall@1/3/6 = 1.0`, `ndcg@1/3/6 = 1.0`).
-- 3-run latency envelope: p95 ranges from `0.0376 ms` to `0.0717 ms`.
-- Faiss Flat exact mode achieves `overlap_vs_bruteforce = 1.0` for all 3 runs with `--min-flat-overlap 0.99`.
-- In exact benchmark runs (`n=10000`, `d=128`, `nq=200`, `k=10`), Faiss Flat p95 latency is `4.17-15.03 ms` vs bruteforce `29.99-37.63 ms`.
-- 200-run bruteforce study: p95 mean `0.0255 ms` (95% interval `0.0203-0.0547 ms`), QPS mean `188,097` (95% interval `117,499-214,111`).
-
-Run the 200-run study:
-
-```bash
-python3 scripts/stability_runs.py \
-  --embeddings artifacts/real_corpus_inputs/embeddings.npy \
-  --query-embeddings artifacts/real_corpus_inputs/query_embeddings.npy \
-  --ids artifacts/real_corpus_inputs/ids.json \
-  --ground-truth artifacts/real_corpus_inputs/ground_truth.json \
-  --metadata artifacts/real_corpus_inputs/metadata.json \
-  --backend bruteforce \
-  --k 6 \
-  --ks 1,3,6 \
-  --loops 5 \
-  --run-count 200 \
-  --output-dir artifacts/testing_runs \
-  --threshold-recall 0.75 \
-  --threshold-ndcg 0.70 \
-  --threshold-p95-ms 120
-```
-
-Example result table format:
-
-| Backend | QPS | p50 ms | p95 ms | overlap@k vs brute-force |
-| --- | ---: | ---: | ---: | ---: |
-| bruteforce | ... | ... | ... | 1.000 |
-| faiss_flat | ... | ... | ... | ... |
-| faiss_ivf (optional) | ... | ... | ... | ... |
-
-## Integration quickstarts
-
-### Local RAG app path
-
-```bash
-pip install -e ".[dev,ml]"
-python examples/minimal_rag_integration.py
-```
-
-### Batch evaluation path
+1) Run retrieval evaluation:
 
 ```bash
 python scripts/rag_real_corpus_eval.py \
-  --embeddings artifacts/real_corpus_inputs/embeddings.npy \
-  --query-embeddings artifacts/real_corpus_inputs/query_embeddings.npy \
-  --ids artifacts/real_corpus_inputs/ids.json \
-  --ground-truth artifacts/real_corpus_inputs/ground_truth.json \
-  --metadata artifacts/real_corpus_inputs/metadata.json \
+  --embeddings artifacts/ingest_bundle/embeddings.npy \
+  --query-embeddings artifacts/repro_smoke/real_corpus_inputs/query_embeddings.npy \
+  --ids artifacts/ingest_bundle/ids.json \
+  --ground-truth artifacts/ingest_bundle/ground_truth.json \
+  --metadata artifacts/ingest_bundle/metadata.json \
   --output artifacts/real_corpus_runs/run_1.json \
   --backend bruteforce \
   --k 6 \
@@ -207,118 +130,55 @@ python scripts/rag_real_corpus_eval.py \
   --threshold-p95-ms 120
 ```
 
-### Benchmark interpretation path
+Bundle outputs include:
+
+- `embeddings.npy`, `ids.json`, `metadata.json`
+- optional `labels.json`, `splits.json`, `query_groups.json`, `ground_truth.json`
+- `ingest_manifest.v1.json` (contract-validated)
+
+## Backends
+
+| Backend | Search | Add | Save/Load | Custom Metric |
+| --- | ---: | ---: | ---: | ---: |
+| `bruteforce` | yes | yes | yes | yes |
+| `faiss` | yes | yes | yes | no |
+
+FAISS is optional. The required reproducibility path is bruteforce-safe.
+
+## Reproducibility and Evidence
+
+Recommended release evidence flow:
 
 ```bash
-python benchmarks/compare_bruteforce_vs_faiss.py \
-  --mode exact \
-  --min-flat-overlap 0.99 \
-  --output artifacts/faiss_equivalence/run_1.json
-```
-
-- If `overlap_vs_bruteforce` is near `1.0`, approximation risk is low for that configuration.
-- Use `latency_p95_ms` for user-facing SLO decisions.
-- Use repeated runs + median values before publishing backend comparisons.
-
-### Minimal production path (copy-paste)
-
-```bash
-pip install -e ".[dev,ml]"
-python scripts/rag_baseline.py --output-dir artifacts --k 3
-python scripts/rag_real_corpus_eval.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --output artifacts/real_corpus_runs/run_1.json --backend bruteforce --k 10 --ks 1,5,10 --loops 5
-python scripts/stability_runs.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --backend bruteforce --run-count 200 --output-dir artifacts/testing_runs
-python benchmarks/compare_bruteforce_vs_faiss.py --mode exact --min-flat-overlap 0.99 --output artifacts/faiss_equivalence/run_1.json
-python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --min-flat-overlap 0.99 --output-dir artifacts/benchmark_matrix
+python scripts/repro_smoke.py --output-dir artifacts/repro_smoke
+python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --output-dir artifacts/benchmark_matrix
 python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
+python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --publishable-summary artifacts/benchmark_matrix/publishable_results.v1.json --output artifacts/audit/credibility_audit.v1.json
 ```
 
-Expected artifacts:
+## Examples
 
-- `artifacts/rag_baseline_metrics.v1.json`
-- `artifacts/real_corpus_runs/run_*.json`
-- `artifacts/testing_runs/stability_summary_*.json`
-- `artifacts/faiss_equivalence/run_*.json`
-- `artifacts/benchmark_matrix/matrix_summary.json`
-- `artifacts/benchmark_matrix/publishable_results.v1.json`
-
-Further reading:
-
-- `docs/integration_guides.md`
-- `docs/reproducibility.md`
-- `docs/kpi_charter.md`
-- `docs/research_claims.md`
-- `docs/credibility_audit.md`
-- `docs/limitations.md`
-- `docs/releases/v1.0.0.md`
-- `docs/paper/reproducibility_appendix.md`
-
-## Publication and release bundle
-
-Generate a release-bundle manifest that checks required docs/governance/evidence files:
-
-```bash
-python scripts/build_release_bundle.py --output-dir artifacts/release_bundle
-```
-
-## Artifact policy (publish vs private)
-
-- Safe to publish:
-  - benchmark result summaries
-  - stability aggregate summaries
-  - synthetic/mock input examples
-- Keep private:
-  - real corpus raw embeddings
-  - query embeddings derived from private data
-  - sensitive metadata and ID mappings
-- Recommended:
-  - commit docs + summary metrics in repo
-  - keep private input blobs in external storage
-
-## Project adoption checklist
-
-- Install: `pip install -e ".[dev,ml]"` and optional `.[faiss]`.
-- Validation: run `pytest -q`.
-- Quality baseline: run `python scripts/rag_baseline.py`.
-- Real corpus eval: run `python scripts/rag_real_corpus_eval.py --embeddings ... --query-embeddings ... --ids ... --ground-truth ... --threshold-recall 0.75 --threshold-ndcg 0.70 --threshold-p95-ms 120`.
-- Persistence: verify `VectorIndex.save/load` on your own embeddings snapshot.
-- Performance: run benchmark script with your target `n`, `d`, `nq`, `k`.
-- Integration: run `python examples/minimal_rag_integration.py`.
-
-## Feature snapshot
-
-- `kmeans` returns rich outputs (`labels`, `centers`, `inertia`, `n_iter`) with deterministic validation.
-- Hard-negative mining supports `top1`, `topk_sample`, and `distance_band`, plus `exclude_ids` / `exclude_mask`.
-- Retrieval evaluation includes `retrieval_report_detailed(include_per_query=...)` and `batch_metrics_summary(include_std=True)`.
-- Public demo bootstrap is available under `demo_repo_template/`.
-
-## v1.0 readiness gates
-
-- Benchmark matrix artifacts produced with fixed protocol and environment metadata.
-- Stability harness demonstrates repeatability for latency/QPS/quality summaries.
-- API stability contract documented in `docs/api.md` and enforced in `tests/test_api_stability.py`.
-- Release packaging includes reproducible command blocks and artifact policy.
-
-## Governance and trust
-
-- `LICENSE`
-- `CITATION.cff`
-
-## Error cases
-
-Stable error prefixes are used for fast debugging:
-
-- `vector_array_error`: malformed array, IDs, metadata, subset lookup
-- `metric_error`: unsupported or invalid metric definitions
-- `index_error`: index lifecycle/search/add/persistence consistency issues
-- `manifest_error`: missing/unsupported manifest fields or version
+- `examples/minimal_rag_integration.py`
+- `examples/hard_negative_training_batch.py`
+- `examples/cohort_eval_workflow.py`
+- `notebooks/01_semantic_search.ipynb`
+- `notebooks/02_knn_baseline.ipynb`
+- `notebooks/03_recommender_similarity.ipynb`
 
 ## Troubleshooting
 
-- **Faiss not available**
-  - Install with `pip install -e ".[faiss]"`.
-- **Dimension mismatch at search/add**
-  - Ensure both base vectors and query vectors use the same embedding dimension.
-- **Metric confusion**
-  - For cosine similarity, pass normalized vectors or set `normalize=True`.
-- **Persistence load failure**
-  - Check manifest version compatibility and whether artifacts were modified after save.
+- **`externally-managed-environment`**: install inside a venv.
+- **No FAISS available**: run bruteforce path and skip overlap-gated FAISS checks.
+- **Dimension mismatch**: ensure query and index embeddings share the same dimension.
+- **NumPy segfault on macOS/Python 3.12**: reinstall with `requirements/constraints-macos-arm64-py312.txt` and run `python scripts/env_diagnostics.py`.
+
+## Project Links
+
+- `docs/releases/v1.0.0.md`
+- `docs/releases/v1.0.0-checklist.md`
+- `docs/reproducibility.md`
+- `docs/use_cases.md`
+- `docs/api_stability.md`
+- `docs/research_claims.md`
+- `LICENSE`
+- `CITATION.cff`
