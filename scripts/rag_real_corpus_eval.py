@@ -17,7 +17,7 @@ if __package__ is None or __package__ == "":
         sys.path.insert(0, repo_root)
 
 from vector_engine import VectorArray, VectorIndex
-from vector_engine.eval import retrieval_report
+from vector_engine.eval import retrieval_cohort_report, retrieval_report, retrieval_report_detailed
 from scripts.artifact_contracts import validate_real_corpus_payload
 
 ARTIFACT_CONTRACT_VERSION = "1.0"
@@ -66,6 +66,8 @@ def evaluate_real_corpus(
     threshold_recall: float | None,
     threshold_ndcg: float | None,
     threshold_p95_ms: float | None,
+    include_per_query: bool = False,
+    query_cohorts_path: str | None = None,
 ) -> dict[str, object]:
     t_start = time.perf_counter()
     xb = np.load(embeddings_path).astype(np.float32)
@@ -99,6 +101,22 @@ def evaluate_real_corpus(
     index = VectorIndex.create(base, metric="cosine", backend=backend)
     res = index.search(queries, k=k, return_metadata=False)
     metrics = retrieval_report(res.ids, gt, ks=ks)
+    detailed = retrieval_report_detailed(
+        res.ids,
+        gt,
+        ks=ks,
+        include_per_query=include_per_query,
+        include_error_buckets=True,
+    )
+    cohort_metrics: dict[str, object] | None = None
+    if query_cohorts_path is not None:
+        cohort_raw = _load_json(query_cohorts_path)
+        if not isinstance(cohort_raw, list):
+            raise ValueError("input_error: query cohorts file must be a JSON list")
+        if len(cohort_raw) != xq.shape[0]:
+            raise ValueError("input_error: query cohorts length must match number of queries")
+        cohort_labels = [str(x) for x in cohort_raw]
+        cohort_metrics = retrieval_cohort_report(res.ids, gt, cohort_labels, ks=ks)
     perf = _run_latency(index, queries, k=k, loops=loops)
 
     checks: dict[str, bool] = {}
@@ -115,6 +133,7 @@ def evaluate_real_corpus(
         "k": k,
         "ks": list(ks),
         "metrics": metrics,
+        "detailed_metrics": detailed,
         "performance": perf,
         "topk_ids": res.ids.tolist(),
         "runtime_seconds": float(time.perf_counter() - t_start),
@@ -134,6 +153,8 @@ def evaluate_real_corpus(
         },
         "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
+    if cohort_metrics is not None:
+        payload["cohort_metrics"] = cohort_metrics
     validate_real_corpus_payload(payload)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -156,6 +177,8 @@ def main() -> None:
     parser.add_argument("--threshold-recall", type=float, default=None, help="Optional minimum recall gate.")
     parser.add_argument("--threshold-ndcg", type=float, default=None, help="Optional minimum NDCG gate.")
     parser.add_argument("--threshold-p95-ms", type=float, default=None, help="Optional max p95 latency gate.")
+    parser.add_argument("--include-per-query", action="store_true", help="Include per-query metrics in detailed report.")
+    parser.add_argument("--query-cohorts", default=None, help="Optional JSON list of cohort labels per query.")
     args = parser.parse_args()
 
     payload = evaluate_real_corpus(
@@ -172,6 +195,8 @@ def main() -> None:
         threshold_recall=args.threshold_recall,
         threshold_ndcg=args.threshold_ndcg,
         threshold_p95_ms=args.threshold_p95_ms,
+        include_per_query=args.include_per_query,
+        query_cohorts_path=args.query_cohorts,
     )
     print(json.dumps(payload["metrics"], indent=2))
     print(json.dumps(payload["performance"], indent=2))

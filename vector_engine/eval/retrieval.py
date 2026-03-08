@@ -131,6 +131,7 @@ def retrieval_report_detailed(
     ks: Sequence[int] = (1, 5, 10),
     *,
     include_per_query: bool = True,
+    include_error_buckets: bool = True,
 ) -> dict[str, object]:
     """Compute aggregate and per-query retrieval metrics."""
     retrieved = _ensure_2d("retrieved_ids", retrieved_ids)
@@ -147,13 +148,64 @@ def retrieval_report_detailed(
                 row[f"ndcg@{k}"] = _per_query_ndcg(retrieved[i].tolist(), gt[i], k)
             per_query.append(row)
         payload["per_query"] = per_query
+    if include_error_buckets:
+        gt = _normalize_ground_truth(ground_truth_ids, n_queries=retrieved.shape[0])
+        buckets: dict[str, float] = {}
+        for k in ks:
+            zero_hit = 0
+            perfect_recall = 0
+            no_ground_truth = 0
+            for i in range(retrieved.shape[0]):
+                gt_row = gt[i]
+                if len(gt_row) == 0:
+                    no_ground_truth += 1
+                    continue
+                hit = sum(1 for item in retrieved[i].tolist()[:k] if item in gt_row)
+                if hit == 0:
+                    zero_hit += 1
+                if hit == len(gt_row):
+                    perfect_recall += 1
+            n = float(retrieved.shape[0])
+            buckets[f"zero_hit_rate@{k}"] = zero_hit / n
+            buckets[f"perfect_recall_rate@{k}"] = perfect_recall / n
+            buckets[f"no_ground_truth_rate@{k}"] = no_ground_truth / n
+        payload["error_buckets"] = buckets
     return payload
+
+
+def _bootstrap_ci(
+    vals: np.ndarray,
+    *,
+    confidence: float,
+    n_bootstrap: int,
+    random_state: int,
+) -> tuple[float, float]:
+    if vals.size == 0:
+        raise ValueError("eval_error: bootstrap values cannot be empty")
+    if n_bootstrap <= 0:
+        raise ValueError("eval_error: n_bootstrap must be > 0")
+    if confidence <= 0.0 or confidence >= 1.0:
+        raise ValueError("eval_error: confidence must be in (0, 1)")
+    rng = np.random.default_rng(random_state)
+    means = np.zeros(n_bootstrap, dtype=np.float64)
+    n = vals.shape[0]
+    for i in range(n_bootstrap):
+        sample_idx = rng.integers(0, n, size=n)
+        means[i] = float(np.mean(vals[sample_idx]))
+    alpha = 1.0 - confidence
+    lo = float(np.percentile(means, 100.0 * (alpha / 2.0)))
+    hi = float(np.percentile(means, 100.0 * (1.0 - alpha / 2.0)))
+    return lo, hi
 
 
 def batch_metrics_summary(
     reports: Sequence[dict[str, float]],
     *,
     include_std: bool = False,
+    include_ci: bool = False,
+    confidence: float = 0.95,
+    n_bootstrap: int = 400,
+    random_state: int = 0,
 ) -> dict[str, float]:
     """Aggregate multiple retrieval reports into macro means."""
     if len(reports) == 0:
@@ -169,5 +221,44 @@ def batch_metrics_summary(
         summary[key] = float(np.mean(arr))
         if include_std:
             summary[f"{key}_std"] = float(np.std(arr))
+        if include_ci:
+            lo, hi = _bootstrap_ci(
+                arr,
+                confidence=confidence,
+                n_bootstrap=n_bootstrap,
+                random_state=random_state,
+            )
+            summary[f"{key}_ci_lower"] = lo
+            summary[f"{key}_ci_upper"] = hi
     summary["num_reports"] = float(len(reports))
     return summary
+
+
+def retrieval_cohort_report(
+    retrieved_ids: np.ndarray,
+    ground_truth_ids: np.ndarray | Iterable[Iterable[object]],
+    cohorts: Sequence[str],
+    ks: Sequence[int] = (1, 5, 10),
+) -> dict[str, object]:
+    """Compute retrieval metrics grouped by query cohort labels."""
+    retrieved = _ensure_2d("retrieved_ids", retrieved_ids)
+    if len(cohorts) != retrieved.shape[0]:
+        raise ValueError("eval_error: cohorts length must match number of queries")
+    groups: dict[str, list[int]] = {}
+    for i, label in enumerate(cohorts):
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("eval_error: cohort labels must be non-empty strings")
+        groups.setdefault(label, []).append(i)
+
+    gt = _normalize_ground_truth(ground_truth_ids, n_queries=retrieved.shape[0])
+    per_cohort: dict[str, dict[str, float]] = {}
+    for label, idxs in groups.items():
+        sub_retrieved = np.asarray([retrieved[i].tolist() for i in idxs], dtype=object)
+        sub_gt = [gt[i] for i in idxs]
+        per_cohort[label] = retrieval_report(sub_retrieved, sub_gt, ks=ks)
+    overall = retrieval_report(retrieved, gt, ks=ks)
+    return {
+        "overall": overall,
+        "per_cohort": per_cohort,
+        "cohort_sizes": {k: float(len(v)) for k, v in groups.items()},
+    }
