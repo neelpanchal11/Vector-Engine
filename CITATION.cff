@@ -3,8 +3,8 @@ title: "Vector Engine"
 message: "If you use Vector Engine in research, please cite this project."
 type: software
 authors:
-  - family-names: "Contributors"
-    given-names: "Vector Engine"
+  - family-names: "Panchal"
+    given-names: "Neel"
 repository-code: "https://github.com/neelpanchal11/Vector-Engine"
 license: MIT
 version: "1.0.0"

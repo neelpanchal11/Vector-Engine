@@ -1,2 +1,2 @@
-vector-engine>=0.2.0
+vector-engine>=1.0.0
 numpy>=1.24
