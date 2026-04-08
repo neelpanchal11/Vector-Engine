@@ -58,3 +58,20 @@ def test_randomized_metric_bounds_property():
         detail = retrieval_report_detailed(retrieved, gt, ks=(1, k), include_per_query=False)
         for _, value in detail["summary"].items():
             assert 0.0 <= value <= 1.0
+
+
+def test_retrieval_error_buckets_ignore_empty_ground_truth_for_hit_rates():
+    retrieved = np.array(
+        [
+            ["a", "x", "y"],  # perfect hit at k=1
+            ["z", "y", "x"],  # zero hit at k=1
+            ["m", "n", "o"],  # ignored for hit-rates (empty ground truth)
+        ],
+        dtype=object,
+    )
+    gt = [["a"], ["b"], []]
+    out = retrieval_report_detailed(retrieved, gt, ks=(1,), include_per_query=False, include_error_buckets=True)
+    buckets = out["error_buckets"]
+    assert buckets["zero_hit_rate@1"] == 0.5
+    assert buckets["perfect_recall_rate@1"] == 0.5
+    assert buckets["no_ground_truth_rate@1"] == (1.0 / 3.0)
