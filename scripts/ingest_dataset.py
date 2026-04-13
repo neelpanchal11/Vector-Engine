@@ -48,8 +48,7 @@ class HashEmbeddingProvider:
         return out
 
 
-def _read_jsonl(path: str) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
+def _iter_jsonl(path: str) -> tuple[int, dict[str, object]]:
     with open(path, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             line = line.strip()
@@ -58,10 +57,23 @@ def _read_jsonl(path: str) -> list[dict[str, object]]:
             raw = json.loads(line)
             if not isinstance(raw, dict):
                 raise ValueError(f"ingest_error: row {i} must be an object")
-            rows.append(raw)
-    if not rows:
-        raise ValueError("ingest_error: input JSONL has no records")
-    return rows
+            yield i, raw
+
+
+def _estimate_ingest_memory_mb(*, record_count: int, embedding_dim: int) -> float:
+    # Embeddings dominate memory footprint; add small overhead budget for ids/metadata lists.
+    embedding_mb = (record_count * embedding_dim * 4) / (1024**2)
+    overhead_mb = (record_count * 96) / (1024**2)
+    return float(embedding_mb + overhead_mb)
+
+
+def _count_jsonl_records(path: str) -> int:
+    count = 0
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                count += 1
+    return count
 
 
 def run_ingest(
@@ -76,21 +88,34 @@ def run_ingest(
     split_field: str | None = None,
     query_group_field: str | None = None,
     ground_truth_field: str | None = None,
+    batch_size: int = 1024,
+    max_memory_mb: float | None = None,
 ) -> dict[str, object]:
     if embedding_dim <= 0:
         raise ValueError("ingest_error: embedding_dim must be > 0")
+    if batch_size <= 0:
+        raise ValueError("ingest_error: batch_size must be > 0")
     provider: EmbeddingProvider = HashEmbeddingProvider(seed=seed)
-    rows = _read_jsonl(input_jsonl)
+    record_count = _count_jsonl_records(input_jsonl)
+    if record_count == 0:
+        raise ValueError("ingest_error: input JSONL has no records")
+    estimated_memory_mb = _estimate_ingest_memory_mb(record_count=record_count, embedding_dim=embedding_dim)
+    if max_memory_mb is not None and estimated_memory_mb > max_memory_mb:
+        raise ValueError(
+            "ingest_error: estimated ingest memory exceeds max_memory_mb "
+            f"({estimated_memory_mb:.2f} > {max_memory_mb:.2f})"
+        )
 
     ids: list[object] = []
-    texts: list[str] = []
     metadata: list[dict[str, object]] = []
     labels: list[object] | None = [] if label_field else None
     splits: list[str] | None = [] if split_field else None
     query_groups: list[str] | None = [] if query_group_field else None
     ground_truth: list[list[object]] | None = [] if ground_truth_field else None
+    embeddings_chunks: list[np.ndarray] = []
+    batch_texts: list[str] = []
 
-    for i, row in enumerate(rows):
+    for i, row in _iter_jsonl(input_jsonl):
         if id_field not in row:
             raise ValueError(f"ingest_error: row {i} missing id field '{id_field}'")
         if text_field not in row:
@@ -99,7 +124,7 @@ def run_ingest(
         text_value = row[text_field]
         if not isinstance(text_value, str):
             raise ValueError(f"ingest_error: row {i} text field '{text_field}' must be a string")
-        texts.append(text_value)
+        batch_texts.append(text_value)
         exclude = {id_field, text_field}
         if label_field:
             if label_field not in row:
@@ -125,10 +150,15 @@ def run_ingest(
             ground_truth.append(list(gt))  # type: ignore[union-attr]
             exclude.add(ground_truth_field)
         metadata.append({k: v for k, v in row.items() if k not in exclude})
+        if len(batch_texts) >= batch_size:
+            embeddings_chunks.append(provider.embed(batch_texts, dim=embedding_dim))
+            batch_texts = []
 
     if len(set(ids)) != len(ids):
         raise ValueError("ingest_error: ids must be unique")
-    embeddings = provider.embed(texts, dim=embedding_dim)
+    if batch_texts:
+        embeddings_chunks.append(provider.embed(batch_texts, dim=embedding_dim))
+    embeddings = np.vstack(embeddings_chunks)
     if not np.isfinite(embeddings).all():
         raise ValueError("ingest_error: generated embeddings contain non-finite values")
 
@@ -168,6 +198,9 @@ def run_ingest(
         "embedding_dim": embedding_dim,
         "provider": "hash",
         "seed": seed,
+        "batch_size": batch_size,
+        "max_memory_mb": max_memory_mb,
+        "estimated_memory_mb": estimated_memory_mb,
         "fields": {
             "id_field": id_field,
             "text_field": text_field,
@@ -211,6 +244,13 @@ def main() -> None:
     parser.add_argument("--split-field", default=None)
     parser.add_argument("--query-group-field", default=None)
     parser.add_argument("--ground-truth-field", default=None)
+    parser.add_argument("--batch-size", type=int, default=1024)
+    parser.add_argument(
+        "--max-memory-mb",
+        type=float,
+        default=None,
+        help="Optional preflight memory cap; aborts ingest when estimated in-memory usage exceeds this.",
+    )
     args = parser.parse_args()
     manifest = run_ingest(
         input_jsonl=args.input_jsonl,
@@ -223,6 +263,8 @@ def main() -> None:
         split_field=args.split_field,
         query_group_field=args.query_group_field,
         ground_truth_field=args.ground_truth_field,
+        batch_size=args.batch_size,
+        max_memory_mb=args.max_memory_mb,
     )
     print(json.dumps(manifest, indent=2))
 

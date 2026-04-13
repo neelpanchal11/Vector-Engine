@@ -23,6 +23,7 @@ from scripts.artifact_contracts import (
 )
 from scripts.benchmark_matrix import run_matrix
 from scripts.publishable_results import build_publishable_summary
+from scripts.performance_gates import run_performance_gates
 from scripts.rag_baseline import run_baseline
 from scripts.rag_real_corpus_eval import evaluate_real_corpus
 from scripts.stability_runs import run_stability_study
@@ -128,6 +129,16 @@ def run_smoke(output_dir: str) -> dict[str, str]:
         out_path=str(root / "benchmark_matrix" / "publishable_results.v1.json"),
     )
     validate_publishable_summary(publishable)
+    gate_report = run_performance_gates(
+        matrix_summary_path=str(root / "benchmark_matrix" / "matrix_summary.json"),
+        stability_summary_path=str(root / "testing_runs" / "stability_summary_bruteforce_10.json"),
+        output_path=str(root / "release_gates" / "performance_gate_report.v1.json"),
+        min_recall=0.50,
+        min_ndcg=0.50,
+        max_latency_p95_ms=500.0,
+        min_qps=0.0,
+        min_flat_overlap=0.95,
+    )
 
     return {
         "baseline_artifact": str(root / "rag_baseline_metrics.v1.json"),
@@ -135,6 +146,8 @@ def run_smoke(output_dir: str) -> dict[str, str]:
         "stability_artifact": str(root / "testing_runs" / "stability_summary_bruteforce_10.json"),
         "matrix_artifact": str(root / "benchmark_matrix" / "matrix_summary.json"),
         "publishable_artifact": str(root / "benchmark_matrix" / "publishable_results.v1.json"),
+        "performance_gate_artifact": str(root / "release_gates" / "performance_gate_report.v1.json"),
+        "performance_gate_status": str(gate_report["status"]),
         "baseline_metrics_keys": ",".join(sorted(baseline["metrics"].keys())),
     }
 

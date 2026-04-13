@@ -1,4 +1,4 @@
-# Vector Engine v1.0.0
+# Vector Engine v1.1.0
 
 Reproducibility-first vector retrieval toolkit for local ML and IR workflows.
 
@@ -77,7 +77,12 @@ results = index.search(xq, k=5)
 print(results.ids[0], results.scores[0])
 ```
 
-## v1.0.0 Surface
+## Colab Demos
+
+- Demo A (basic): [Google Colab](https://colab.research.google.com/drive/1VUkf8mc1lBEQQ9iBWr_WitJJgbcbIPZ6?usp=sharing)
+- Scaling expansion: [Google Colab](https://colab.research.google.com/drive/1HCd1_R56eBLuTzobYTeiCeAIwT-K7XZb?usp=sharing)
+
+## v1.1.0 Surface
 
 - Core: `VectorArray`, `VectorIndex`, `Metric`, `SearchResult`
 - ML: `knn_classify`, `knn_regress`, `kmeans`, `KMeansResult`
@@ -174,8 +179,8 @@ python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/
 
 ## Project Links
 
-- `docs/releases/v1.0.0.md`
-- `docs/releases/v1.0.0-checklist.md`
+- `docs/releases/v1.1.0.md`
+- `docs/releases/v1.1.0-checklist.md`
 - `docs/reproducibility.md`
 - `docs/use_cases.md`
 - `docs/api_stability.md`

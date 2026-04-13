@@ -81,3 +81,19 @@ def test_run_ingest_rejects_duplicate_ids(tmp_path):
             embedding_dim=8,
             seed=7,
         )
+
+
+def test_run_ingest_honors_memory_cap(tmp_path):
+    source = tmp_path / "source.jsonl"
+    rows = [{"id": f"d{i}", "text": f"text-{i}"} for i in range(10)]
+    _write_jsonl(source, rows)
+    with pytest.raises(ValueError, match="max_memory_mb"):
+        run_ingest(
+            input_jsonl=str(source),
+            output_dir=str(tmp_path / "out"),
+            id_field="id",
+            text_field="text",
+            embedding_dim=64,
+            seed=7,
+            max_memory_mb=0.0001,
+        )

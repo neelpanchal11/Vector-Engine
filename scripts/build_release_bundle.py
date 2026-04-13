@@ -29,7 +29,7 @@ def build_bundle(output_dir: str) -> dict[str, Any]:
         "docs/credibility_audit.md",
         "docs/limitations.md",
         "docs/api_stability.md",
-        "docs/releases/v1.0.0.md",
+        "docs/releases/v1.1.0.md",
         "docs/paper/v1_manuscript_outline.md",
         "docs/paper/reproducibility_appendix.md",
     ]
@@ -42,11 +42,12 @@ def build_bundle(output_dir: str) -> dict[str, Any]:
         "artifacts/benchmark_matrix/publishable_results.v1.json",
         "artifacts/testing_runs/stability_summary_bruteforce_200.json",
         "artifacts/audit/credibility_audit.v1.json",
+        "artifacts/release_gates/performance_gate_report.v1.json",
     ]
 
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "bundle_version": "v1.0.0",
+        "bundle_version": "v1.1.0",
         "documents": [_file_status(path) for path in docs],
         "governance": [_file_status(path) for path in governance],
         "artifacts": [_file_status(path) for path in artifacts],

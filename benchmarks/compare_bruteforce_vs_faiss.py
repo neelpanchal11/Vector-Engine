@@ -66,7 +66,13 @@ def timed_search(
     return stats, last_ids
 
 
-def maybe_build_faiss(base: VectorArray, mode: str) -> list[tuple[str, VectorIndex]]:
+def maybe_build_faiss(
+    base: VectorArray,
+    mode: str,
+    *,
+    ivf_index_factory: str,
+    ivf_nprobe: int,
+) -> list[tuple[str, VectorIndex]]:
     indexes: list[tuple[str, VectorIndex]] = []
     try:
         indexes.append(
@@ -93,7 +99,7 @@ def maybe_build_faiss(base: VectorArray, mode: str) -> list[tuple[str, VectorInd
                         base,
                         metric="cosine",
                         backend="faiss",
-                        backend_config={"index_factory": "IVF128,Flat", "nprobe": 8},
+                        backend_config={"index_factory": ivf_index_factory, "nprobe": ivf_nprobe},
                     ),
                 )
             )
@@ -124,6 +130,17 @@ def main() -> None:
         help="Optional minimum overlap_vs_bruteforce required for faiss_flat (exact mode checks).",
     )
     parser.add_argument("--output", default=None, help="Optional path to save JSON benchmark artifact.")
+    parser.add_argument(
+        "--faiss-ivf-index-factory",
+        default="IVF128,Flat",
+        help="Index factory used for faiss_ivf in ann/all modes.",
+    )
+    parser.add_argument(
+        "--faiss-ivf-nprobe",
+        type=int,
+        default=8,
+        help="nprobe used for faiss_ivf in ann/all modes.",
+    )
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -148,7 +165,12 @@ def main() -> None:
         }
     )
 
-    for name, idx in maybe_build_faiss(base, args.mode):
+    for name, idx in maybe_build_faiss(
+        base,
+        args.mode,
+        ivf_index_factory=args.faiss_ivf_index_factory,
+        ivf_nprobe=args.faiss_ivf_nprobe,
+    ):
         stats, ids = timed_search(idx, query, k=args.k, warmup=args.warmup, loops=args.loops)
         rows.append(
             {
@@ -173,6 +195,8 @@ def main() -> None:
             "loops": args.loops,
             "mode": args.mode,
             "min_flat_overlap": args.min_flat_overlap,
+            "faiss_ivf_index_factory": args.faiss_ivf_index_factory,
+            "faiss_ivf_nprobe": args.faiss_ivf_nprobe,
         },
         "environment": {
             "platform": platform.platform(),

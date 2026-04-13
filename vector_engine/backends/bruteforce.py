@@ -23,6 +23,8 @@ class BruteForceBackend:
             "supports_delete": False,
             "supports_custom_metric": True,
             "supports_persistence": True,
+            "supports_add": True,
+            "supports_ann_tuning": False,
         }
     )
     xb: np.ndarray | None = None
@@ -93,6 +95,18 @@ class BruteForceBackend:
                 },
                 f,
             )
+
+    def get_runtime_stats(self) -> dict[str, float | int | str]:
+        count = int(self.xb.shape[0]) if self.xb is not None else 0
+        dim = int(self.xb.shape[1]) if self.xb is not None else 0
+        metric_name = self.metric.name if self.metric is not None else "unknown"
+        return {
+            "backend": self.name,
+            "count": count,
+            "dim": dim,
+            "metric": metric_name,
+            "vector_bytes": int(self.xb.nbytes) if self.xb is not None else 0,
+        }
 
     @classmethod
     def load(cls, path: str) -> "BruteForceBackend":

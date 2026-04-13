@@ -238,6 +238,10 @@ def validate_publishable_summary(payload: dict[str, Any]) -> None:
     if not sources:
         raise ValueError("contract_error: sources cannot be empty")
     for key, value in sources.items():
+        if value is None:
+            if key != "previous_summary_path":
+                raise ValueError(f"contract_error: sources.{key} cannot be null")
+            continue
         if not isinstance(value, str) or not value:
             raise ValueError(f"contract_error: sources.{key} must be a non-empty string path")
     matrix_backend = _require_mapping(payload["matrix_backend_summary"], field="matrix_backend_summary")
@@ -255,6 +259,8 @@ def validate_publishable_summary(payload: dict[str, Any]) -> None:
     environment = _require_mapping(payload["environment"], field="environment")
     _require_mapping(environment.get("matrix"), field="environment.matrix")
     _require_mapping(environment.get("stability"), field="environment.stability")
+    if "release_over_release_delta" in payload:
+        _require_mapping(payload["release_over_release_delta"], field="release_over_release_delta")
 
 
 def validate_ingest_manifest(payload: dict[str, Any]) -> None:

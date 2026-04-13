@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import numpy as np
 
@@ -47,6 +47,24 @@ def _load_optional_list(path: str | None, *, field: str, expected_len: int) -> l
     return list(raw)
 
 
+def _iter_jsonl(path: str) -> Iterable[dict[str, Any]]:
+    with open(path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            if not isinstance(row, dict):
+                raise ValueError(f"dataset_error: row {i} must be an object")
+            yield row
+
+
+def estimate_numpy_bundle_memory_mb(n: int, d: int) -> float:
+    if n <= 0 or d <= 0:
+        raise ValueError("dataset_error: n and d must be > 0 for memory estimate")
+    return float((n * d * 4) / (1024**2))
+
+
 def load_numpy_bundle(
     embeddings_path: str,
     ids_path: str,
@@ -56,8 +74,9 @@ def load_numpy_bundle(
     splits_path: str | None = None,
     ground_truth_path: str | None = None,
     query_groups_path: str | None = None,
+    mmap_mode: str | None = None,
 ) -> DatasetBundle:
-    xb = _ensure_2d_float32("embeddings", np.load(embeddings_path))
+    xb = _ensure_2d_float32("embeddings", np.load(embeddings_path, mmap_mode=mmap_mode))
     with open(ids_path, "r", encoding="utf-8") as f:
         ids = json.load(f)
     if not isinstance(ids, list):
@@ -110,14 +129,6 @@ def load_jsonl_bundle(
     ground_truth_field: str | None = None,
     query_group_field: str | None = None,
 ) -> DatasetBundle:
-    rows: list[dict[str, Any]] = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    if not rows:
-        raise ValueError("dataset_error: JSONL file has no records")
     ids: list[object] = []
     vectors: list[list[float]] = []
     metadata: list[dict[str, Any]] = []
@@ -125,9 +136,9 @@ def load_jsonl_bundle(
     splits: list[str] | None = [] if split_field is not None else None
     ground_truth: list[list[object]] | None = [] if ground_truth_field is not None else None
     query_groups: list[str] | None = [] if query_group_field is not None else None
-    for i, row in enumerate(rows):
-        if not isinstance(row, dict):
-            raise ValueError(f"dataset_error: row {i} must be an object")
+    row_count = 0
+    for i, row in enumerate(_iter_jsonl(path)):
+        row_count += 1
         if id_field not in row:
             raise ValueError(f"dataset_error: row {i} missing id field '{id_field}'")
         if vector_field not in row:
@@ -162,6 +173,8 @@ def load_jsonl_bundle(
             query_groups.append(str(row[query_group_field]))  # type: ignore[union-attr]
             exclude.add(query_group_field)
         metadata.append({k: v for k, v in row.items() if k not in exclude})
+    if row_count == 0:
+        raise ValueError("dataset_error: JSONL file has no records")
     xb = _ensure_2d_float32("embeddings", np.asarray(vectors, dtype=np.float32))
     _ensure_unique_ids(ids)
     return DatasetBundle(
