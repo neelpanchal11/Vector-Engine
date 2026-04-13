@@ -23,6 +23,8 @@ class FaissBackend:
             "supports_delete": False,
             "supports_custom_metric": False,
             "supports_persistence": True,
+            "supports_add": True,
+            "supports_ann_tuning": True,
         }
     )
     _index: object | None = None
@@ -109,6 +111,17 @@ class FaissBackend:
                 },
                 f,
             )
+
+    def get_runtime_stats(self) -> dict[str, float | int | str]:
+        metric_name = self._metric.name if self._metric is not None else "unknown"
+        config = self._config or {}
+        return {
+            "backend": self.name,
+            "count": int(self._count),
+            "metric": metric_name,
+            "index_factory": str(config.get("index_factory", "Flat")),
+            "nprobe": int(config.get("nprobe", 0)) if config.get("nprobe") is not None else 0,
+        }
 
     @classmethod
     def load(cls, path: str) -> "FaissBackend":

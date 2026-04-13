@@ -1,4 +1,4 @@
-# Reproducibility Workflow (v1.0.0)
+# Reproducibility Workflow (v1.1.0)
 
 This guide defines standard commands and artifact locations for reproducible reports.
 
@@ -85,9 +85,26 @@ Use `--max-memory-mb` to skip configurations that exceed your local memory budge
 Use `scripts/datasets.py` helpers for local datasets:
 
 - NumPy embeddings + JSON IDs/metadata (`load_numpy_bundle`)
+- Memory-mapped NumPy loading for large arrays (`load_numpy_bundle(..., mmap_mode="r")`)
 - JSONL records with `id` + `embedding` fields (`load_jsonl_bundle`)
 - Parquet records with `id` + `embedding` columns (`load_parquet_bundle`, requires pandas)
 - Deterministic train/val/test assignment (`with_deterministic_splits`)
+
+## Large-run quickstart (scale profile)
+
+For larger local studies, run memory-capped ingest + ANN matrix sweeps and produce a shortlist of recommended configs.
+
+```bash
+python scripts/ingest_dataset.py --input-jsonl artifacts/raw/source.jsonl --output-dir artifacts/ingest_bundle --embedding-dim 384 --batch-size 2048 --max-memory-mb 8192
+python scripts/benchmark_matrix.py --profile scale --mode ann --warmup 2 --loops 8 --seed 7 --max-memory-mb 12288 --output-dir artifacts/benchmark_matrix_scale
+python scripts/matrix_profile_advisor.py --matrix-summary artifacts/benchmark_matrix_scale/matrix_summary.json --top-n 5 --output artifacts/benchmark_matrix_scale/recommended_configs.json
+```
+
+Notes:
+
+- `--max-memory-mb` prefilters matrix rows before execution.
+- ANN sweep expansion is driven by per-row `ann_index_factory_options` and `ann_nprobe_options`.
+- `matrix_profile_advisor.py` ranks ANN candidates using overlap + latency + throughput.
 
 ## Artifact contract checks
 
@@ -136,6 +153,7 @@ python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matri
 ```bash
 python -m pytest -q tests/test_eval_surface_v1.py tests/test_profile_local.py
 python -m pytest -q tests/test_artifact_contracts.py tests/test_credibility_audit.py tests/test_release_bundle.py tests/test_api_stability.py
+python scripts/performance_gates.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/release_gates/performance_gate_report.v1.json --min-recall 0.75 --min-ndcg 0.70 --max-latency-p95-ms 120 --min-qps 0
 python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --publishable-summary artifacts/benchmark_matrix/publishable_results.v1.json --output artifacts/audit/credibility_audit.v1.json
 ```
 
@@ -149,6 +167,7 @@ python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/
 - Matrix per-config reports: `artifacts/benchmark_matrix/*.json`
 - Matrix aggregate summary: `artifacts/benchmark_matrix/matrix_summary.json`
 - Publishable summary bundle: `artifacts/benchmark_matrix/publishable_results.v1.json`
+- Release gate report: `artifacts/release_gates/performance_gate_report.v1.json`
 
 ## Publish/private policy
 

@@ -112,6 +112,12 @@ def _check_optional_faiss_disclosure(matrix: dict[str, Any]) -> dict[str, str]:
     return _status("optional_faiss_disclosure", ok, detail, severity="warn")
 
 
+def _check_release_delta_presence(publishable: dict[str, Any]) -> dict[str, str]:
+    has_delta = "release_over_release_delta" in publishable
+    detail = "release_over_release_delta present" if has_delta else "release_over_release_delta missing (first release or not provided)"
+    return _status("release_delta_presence", has_delta, detail, severity="warn")
+
+
 def run_audit(
     *,
     matrix_summary_path: str,
@@ -177,6 +183,7 @@ def run_audit(
     checks.append(_check_no_sensitive_paths(publishable, field="sources"))
     checks.extend(_check_protocol_consistency(matrix, stability, publishable))
     checks.append(_check_optional_faiss_disclosure(matrix))
+    checks.append(_check_release_delta_presence(publishable))
 
     if real_corpus_report_path is not None:
         real_report = _read_json(real_corpus_report_path)

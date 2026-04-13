@@ -36,6 +36,26 @@ PROFILE_MATRICES: dict[str, list[dict[str, Any]]] = {
         {"name": "paper_b", "n": 50000, "d": 256, "nq": 512, "k": 20},
         {"name": "paper_c", "n": 100000, "d": 256, "nq": 512, "k": 20},
     ],
+    "scale": [
+        {
+            "name": "scale_million_base",
+            "n": 200000,
+            "d": 256,
+            "nq": 512,
+            "k": 20,
+            "ann_index_factory_options": ["IVF256,Flat", "IVF512,Flat"],
+            "ann_nprobe_options": [8, 16, 32],
+        },
+        {
+            "name": "scale_million_wide",
+            "n": 500000,
+            "d": 384,
+            "nq": 512,
+            "k": 20,
+            "ann_index_factory_options": ["IVF512,Flat"],
+            "ann_nprobe_options": [16, 32],
+        },
+    ],
 }
 DEFAULT_MATRIX = PROFILE_MATRICES["medium"]
 
@@ -91,6 +111,78 @@ def _parse_matrix(path: str | None, *, profile: str) -> list[dict[str, Any]]:
     return out
 
 
+def _build_run_variants(cfg: dict[str, Any], *, mode: str) -> list[dict[str, Any]]:
+    base = {
+        "name": str(cfg["name"]),
+        "n": int(cfg["n"]),
+        "d": int(cfg["d"]),
+        "nq": int(cfg["nq"]),
+        "k": int(cfg["k"]),
+        "faiss_ivf_index_factory": None,
+        "faiss_ivf_nprobe": None,
+    }
+    if mode not in {"ann", "all"}:
+        return [base]
+
+    factories = cfg.get("ann_index_factory_options") or ["IVF128,Flat"]
+    nprobes = cfg.get("ann_nprobe_options") or [8]
+    variants = [base]
+    for factory in factories:
+        for nprobe in nprobes:
+            variants.append(
+                {
+                    **base,
+                    "name": f"{base['name']}_ivf_{str(factory).replace(',', '_')}_nprobe{int(nprobe)}",
+                    "faiss_ivf_index_factory": str(factory),
+                    "faiss_ivf_nprobe": int(nprobe),
+                }
+            )
+    return variants
+
+
+def _is_dominated(point: dict[str, float], others: list[dict[str, float]]) -> bool:
+    for other in others:
+        if other is point:
+            continue
+        dominates = (
+            other["overlap_vs_bruteforce"] >= point["overlap_vs_bruteforce"]
+            and other["qps"] >= point["qps"]
+            and other["latency_p95_ms"] <= point["latency_p95_ms"]
+            and (
+                other["overlap_vs_bruteforce"] > point["overlap_vs_bruteforce"]
+                or other["qps"] > point["qps"]
+                or other["latency_p95_ms"] < point["latency_p95_ms"]
+            )
+        )
+        if dominates:
+            return True
+    return False
+
+
+def _pareto_frontier(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    by_backend: dict[str, list[dict[str, float]]] = {}
+    for report in rows:
+        report_name = str(report["config"].get("matrix_config_name", "run"))
+        for row in report["results"]:
+            backend = str(row["backend"])
+            by_backend.setdefault(backend, []).append(
+                {
+                    "report": report_name,
+                    "latency_p95_ms": float(row["latency_p95_ms"]),
+                    "qps": float(row["qps"]),
+                    "overlap_vs_bruteforce": float(row["overlap_vs_bruteforce"]),
+                }
+            )
+    frontier: dict[str, list[dict[str, Any]]] = {}
+    for backend, points in by_backend.items():
+        selected = []
+        for point in points:
+            if not _is_dominated(point, points):
+                selected.append(point)
+        frontier[backend] = sorted(selected, key=lambda x: (x["latency_p95_ms"], -x["overlap_vs_bruteforce"], -x["qps"]))
+    return frontier
+
+
 def run_matrix(
     *,
     matrix: list[dict[str, Any]],
@@ -107,36 +199,42 @@ def run_matrix(
     os.makedirs(out_dir, exist_ok=True)
     rows: list[dict[str, Any]] = []
     for cfg in matrix:
-        out_path = os.path.join(out_dir, f"{cfg['name']}.json")
-        cmd = [
-            sys.executable,
-            os.path.join("benchmarks", "compare_bruteforce_vs_faiss.py"),
-            "--mode",
-            mode,
-            "--n",
-            str(cfg["n"]),
-            "--d",
-            str(cfg["d"]),
-            "--nq",
-            str(cfg["nq"]),
-            "--k",
-            str(cfg["k"]),
-            "--warmup",
-            str(warmup),
-            "--loops",
-            str(loops),
-            "--seed",
-            str(seed),
-            "--output",
-            out_path,
-        ]
-        if min_flat_overlap is not None:
-            cmd.extend(["--min-flat-overlap", str(min_flat_overlap)])
-        subprocess.check_call(cmd)
-        with open(out_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        validate_benchmark_report(payload)
-        rows.append(payload)
+        for variant in _build_run_variants(cfg, mode=mode):
+            out_path = os.path.join(out_dir, f"{variant['name']}.json")
+            cmd = [
+                sys.executable,
+                os.path.join("benchmarks", "compare_bruteforce_vs_faiss.py"),
+                "--mode",
+                mode,
+                "--n",
+                str(variant["n"]),
+                "--d",
+                str(variant["d"]),
+                "--nq",
+                str(variant["nq"]),
+                "--k",
+                str(variant["k"]),
+                "--warmup",
+                str(warmup),
+                "--loops",
+                str(loops),
+                "--seed",
+                str(seed),
+                "--output",
+                out_path,
+            ]
+            if min_flat_overlap is not None:
+                cmd.extend(["--min-flat-overlap", str(min_flat_overlap)])
+            if variant["faiss_ivf_index_factory"] is not None:
+                cmd.extend(["--faiss-ivf-index-factory", str(variant["faiss_ivf_index_factory"])])
+            if variant["faiss_ivf_nprobe"] is not None:
+                cmd.extend(["--faiss-ivf-nprobe", str(variant["faiss_ivf_nprobe"])])
+            subprocess.check_call(cmd)
+            with open(out_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            validate_benchmark_report(payload)
+            payload["config"]["matrix_config_name"] = variant["name"]
+            rows.append(payload)
 
     by_backend: dict[str, dict[str, list[float]]] = {}
     for report in rows:
@@ -171,6 +269,7 @@ def run_matrix(
             "min_flat_overlap": min_flat_overlap,
             "max_memory_mb": max_memory_mb,
             "matrix_size": len(matrix),
+            "expanded_run_count": len(rows),
         },
         "environment": {
             "platform": platform.platform(),
@@ -179,7 +278,9 @@ def run_matrix(
             "processor": platform.processor(),
         },
         "matrix": matrix,
+        "expanded_runs": [r["config"].get("matrix_config_name") for r in rows],
         "backend_summary": summary_backends,
+        "pareto_frontier": _pareto_frontier(rows),
         "runs_dir": out_dir,
         "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
@@ -196,7 +297,7 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         default="medium",
-        choices=("dev", "medium", "paper"),
+        choices=("dev", "medium", "paper", "scale"),
         help="Profile preset used when --matrix-config is not provided.",
     )
     parser.add_argument("--mode", default="exact", choices=("exact", "ann", "all"))

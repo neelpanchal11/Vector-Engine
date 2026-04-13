@@ -23,6 +23,9 @@ class BaseBackend(Protocol):
     def save(self, path: str) -> None:
         ...
 
+    def get_runtime_stats(self) -> dict[str, float | int | str]:
+        ...
+
     @classmethod
     def load(cls, path: str) -> "BaseBackend":
         ...

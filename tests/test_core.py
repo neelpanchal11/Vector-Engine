@@ -37,3 +37,17 @@ def test_index_save_and_load_roundtrip(tmp_path):
     loaded = VectorIndex.load(str(path))
     second = loaded.search(xq, k=4)
     assert np.array_equal(first.ids, second.ids)
+
+
+def test_index_backend_capabilities_and_runtime_stats():
+    xb = VectorArray.from_numpy(np.random.randn(16, 4).astype(np.float32), ids=np.arange(16))
+    xq = VectorArray.from_numpy(np.random.randn(2, 4).astype(np.float32))
+    index = VectorIndex.create(xb, metric="cosine", backend="bruteforce")
+    caps = index.backend_capabilities()
+    assert caps["supports_add"] is True
+    assert caps["supports_ann_tuning"] is False
+    index.search(xq, k=3)
+    stats = index.runtime_stats()
+    assert stats["search_calls"] == 1
+    assert stats["last_search_k"] == 3
+    assert stats["backend_stats"]["backend"] == "bruteforce"

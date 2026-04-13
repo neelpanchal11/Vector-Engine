@@ -4,14 +4,37 @@ import subprocess
 import numpy as np
 import pytest
 
-from scripts.benchmark_matrix import _apply_memory_limit, _parse_matrix, run_matrix
-from scripts.datasets import load_jsonl_bundle, load_numpy_bundle, with_deterministic_splits
+from scripts.benchmark_matrix import _apply_memory_limit, _build_run_variants, _parse_matrix, run_matrix
+from scripts.datasets import estimate_numpy_bundle_memory_mb, load_jsonl_bundle, load_numpy_bundle, with_deterministic_splits
 
 
 def test_parse_matrix_profile_defaults_to_dev():
     matrix = _parse_matrix(None, profile="dev")
     assert len(matrix) >= 1
     assert {"name", "n", "d", "nq", "k"}.issubset(set(matrix[0].keys()))
+
+
+def test_parse_matrix_profile_scale():
+    matrix = _parse_matrix(None, profile="scale")
+    assert len(matrix) >= 1
+    assert "ann_index_factory_options" in matrix[0]
+
+
+def test_build_run_variants_ann_expands():
+    variants = _build_run_variants(
+        {
+            "name": "cfg",
+            "n": 1000,
+            "d": 64,
+            "nq": 32,
+            "k": 5,
+            "ann_index_factory_options": ["IVF64,Flat", "IVF128,Flat"],
+            "ann_nprobe_options": [4, 8],
+        },
+        mode="ann",
+    )
+    assert len(variants) == 5
+    assert any(v["faiss_ivf_nprobe"] == 8 for v in variants)
 
 
 def test_apply_memory_limit_filters_large_configs():
@@ -38,6 +61,24 @@ def test_load_numpy_bundle(tmp_path):
     assert bundle.embeddings.shape == (8, 16)
     assert len(bundle.ids) == 8
     assert bundle.metadata is not None
+
+
+def test_load_numpy_bundle_memmap_mode(tmp_path):
+    xb = np.random.randn(6, 12).astype(np.float32)
+    emb = tmp_path / "emb.npy"
+    ids = tmp_path / "ids.json"
+    np.save(emb, xb)
+    ids.write_text(json.dumps([f"doc-{i}" for i in range(6)]), encoding="utf-8")
+    bundle = load_numpy_bundle(str(emb), str(ids), mmap_mode="r")
+    assert bundle.embeddings.shape == (6, 12)
+    assert bundle.ids[0] == "doc-0"
+
+
+def test_estimate_numpy_bundle_memory_mb():
+    estimate = estimate_numpy_bundle_memory_mb(1000, 64)
+    assert estimate > 0.0
+    with pytest.raises(ValueError, match="dataset_error"):
+        estimate_numpy_bundle_memory_mb(0, 64)
 
 
 def test_load_numpy_bundle_with_extended_fields(tmp_path):
@@ -189,3 +230,55 @@ def test_run_matrix_fails_when_overlap_gate_enabled_without_faiss(tmp_path, monk
             profile="dev",
             max_memory_mb=1024.0,
         )
+
+
+def test_run_matrix_ann_sweep_invokes_multiple_configs(tmp_path, monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        calls.append(cmd)
+        out_path = cmd[cmd.index("--output") + 1]
+        payload = {
+            "timestamp_utc": "2026-01-01T00:00:00+00:00",
+            "config": {"mode": "ann", "k": 5, "min_flat_overlap": None},
+            "environment": {"platform": "darwin", "python_version": "3.12", "machine": "arm64", "processor": "arm"},
+            "results": [
+                {
+                    "backend": "bruteforce",
+                    "qps": 900.0,
+                    "latency_p50_ms": 1.1,
+                    "latency_p95_ms": 2.2,
+                    "overlap_vs_bruteforce": 1.0,
+                    "memory_mb_estimate": 10.0,
+                }
+            ],
+            "artifact_contract_version": "1.0",
+        }
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    summary = run_matrix(
+        matrix=[
+            {
+                "name": "tiny",
+                "n": 2000,
+                "d": 32,
+                "nq": 64,
+                "k": 5,
+                "ann_index_factory_options": ["IVF64,Flat"],
+                "ann_nprobe_options": [4, 8],
+            }
+        ],
+        mode="ann",
+        warmup=1,
+        loops=1,
+        seed=7,
+        min_flat_overlap=None,
+        out_dir=str(tmp_path / "out"),
+        profile="dev",
+        max_memory_mb=1024.0,
+    )
+    assert len(calls) == 3
+    assert summary["protocol"]["expanded_run_count"] == 3
+    assert "pareto_frontier" in summary

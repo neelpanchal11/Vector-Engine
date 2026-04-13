@@ -55,6 +55,9 @@ class VectorIndex:
     _row_to_external: list[int | str] = field(default_factory=list)
     _metadata: list[dict[str, Any]] | None = None
     _dim: int = 0
+    _search_calls: int = 0
+    _last_search_k: int = 0
+    _last_search_nq: int = 0
 
     @classmethod
     def create(
@@ -121,6 +124,9 @@ class VectorIndex:
         if k <= 0:
             raise ValueError("index_error: k must be > 0")
         scores, internal_ids = self._backend.search(queries.values, k)
+        self._search_calls += 1
+        self._last_search_k = int(k)
+        self._last_search_nq = int(queries.shape[0])
         external_ids = _to_external_ids(internal_ids, self._row_to_external)
         md_out = None
         if return_metadata and self._metadata is not None:
@@ -135,6 +141,31 @@ class VectorIndex:
                         items.append(self._metadata[rid])
                 md_out.append(items)
         return SearchResult(ids=external_ids, scores=scores, metadata=md_out)
+
+    def backend_capabilities(self) -> dict[str, bool]:
+        if self._backend is None:
+            raise RuntimeError("index_error: index is not initialized")
+        caps = getattr(self._backend, "capabilities", None)
+        if not isinstance(caps, dict):
+            return {}
+        return {str(k): bool(v) for k, v in caps.items()}
+
+    def runtime_stats(self) -> dict[str, Any]:
+        if self._backend is None:
+            raise RuntimeError("index_error: index is not initialized")
+        backend_stats: dict[str, Any] = {}
+        if hasattr(self._backend, "get_runtime_stats"):
+            backend_stats = dict(getattr(self._backend, "get_runtime_stats")())
+        return {
+            "backend": self.backend_name,
+            "dim": int(self._dim),
+            "count": int(len(self._row_to_external)),
+            "search_calls": int(self._search_calls),
+            "last_search_k": int(self._last_search_k),
+            "last_search_nq": int(self._last_search_nq),
+            "capabilities": self.backend_capabilities(),
+            "backend_stats": backend_stats,
+        }
 
     def save(self, path: str) -> None:
         if self._backend is None:
