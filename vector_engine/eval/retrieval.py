@@ -166,8 +166,13 @@ def retrieval_report_detailed(
                 if hit == len(gt_row):
                     perfect_recall += 1
             n = float(retrieved.shape[0])
-            buckets[f"zero_hit_rate@{k}"] = zero_hit / n
-            buckets[f"perfect_recall_rate@{k}"] = perfect_recall / n
+            eligible = float(retrieved.shape[0] - no_ground_truth)
+            if eligible == 0.0:
+                buckets[f"zero_hit_rate@{k}"] = 0.0
+                buckets[f"perfect_recall_rate@{k}"] = 0.0
+            else:
+                buckets[f"zero_hit_rate@{k}"] = zero_hit / eligible
+                buckets[f"perfect_recall_rate@{k}"] = perfect_recall / eligible
             buckets[f"no_ground_truth_rate@{k}"] = no_ground_truth / n
         payload["error_buckets"] = buckets
     return payload
