@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vector-engine"
-version = "1.0.0"
+version = "1.0.2"
 description = "ML-first vector computation and retrieval engine."
 readme = "README.md"
 requires-python = ">=3.10"
