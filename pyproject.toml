@@ -12,6 +12,19 @@ license = "MIT"
 authors = [
   { name = "Neel Panchal" }
 ]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
   "numpy>=1.26.4,<2.0",
 ]
@@ -26,6 +39,12 @@ ml = [
 dev = [
   "pytest>=8.2,<9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/neelpanchal11/Vector-Engine"
+Repository = "https://github.com/neelpanchal11/Vector-Engine"
+Issues = "https://github.com/neelpanchal11/Vector-Engine/issues"
+Documentation = "https://github.com/neelpanchal11/Vector-Engine/tree/main/docs"
 
 [tool.setuptools.packages.find]
 where = ["."]

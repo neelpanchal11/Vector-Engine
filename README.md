@@ -79,8 +79,13 @@ print(results.ids[0], results.scores[0])
 
 ## Colab Demos
 
-- Demo A (basic): [Google Colab](https://colab.research.google.com/drive/1VUkf8mc1lBEQQ9iBWr_WitJJgbcbIPZ6?usp=sharing)
-- Scaling expansion: [Google Colab](https://colab.research.google.com/drive/1HCd1_R56eBLuTzobYTeiCeAIwT-K7XZb?usp=sharing)
+Each notebook opens directly from this repo, so it always matches the current release.
+
+- Semantic search: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/01_semantic_search.ipynb)
+- kNN baseline classifier: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/02_knn_baseline.ipynb)
+- Item-item recommender similarity: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/03_recommender_similarity.ipynb)
+
+`notebooks/04_stability_runs.ipynb` analyzes locally generated benchmark artifacts (see [Reproducibility and Evidence](#reproducibility-and-evidence)) and is not a standalone Colab demo.
 
 ## v1.1.0 Surface
 
