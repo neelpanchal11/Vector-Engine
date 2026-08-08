@@ -1,4 +1,4 @@
-# Vector Engine v1.1.0
+# Vector Engine v1.1.1
 
 Reproducibility-first vector retrieval toolkit for local ML and IR workflows.
 
