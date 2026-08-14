@@ -1,4 +1,4 @@
-# Vector Engine v1.1.1
+# Vector Engine v1.2.0
 
 Reproducibility-first vector retrieval toolkit for local ML and IR workflows.
 
@@ -84,6 +84,7 @@ Each notebook opens directly from this repo, so it always matches the current re
 - Semantic search: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/01_semantic_search.ipynb)
 - kNN baseline classifier: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/02_knn_baseline.ipynb)
 - Item-item recommender similarity: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/03_recommender_similarity.ipynb)
+- IVF ANN backend (recall vs. speed): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/neelpanchal11/Vector-Engine/blob/main/notebooks/05_ann_backend.ipynb)
 
 `notebooks/04_stability_runs.ipynb` analyzes locally generated benchmark artifacts (see [Reproducibility and Evidence](#reproducibility-and-evidence)) and is not a standalone Colab demo.
 
@@ -148,12 +149,15 @@ Bundle outputs include:
 
 ## Backends
 
-| Backend | Search | Add | Save/Load | Custom Metric |
-| --- | ---: | ---: | ---: | ---: |
-| `bruteforce` | yes | yes | yes | yes |
-| `faiss` | yes | yes | yes | no |
+| Backend | Search | Add | Save/Load | Custom Metric | Deps |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `bruteforce` | yes | yes | yes | yes | numpy only |
+| `ivf` | yes | yes | yes | yes | numpy only |
+| `faiss` | yes | yes | yes | no | `faiss-cpu` (optional; no wheel on macOS arm64) |
 
 FAISS is optional. The required reproducibility path is bruteforce-safe.
+
+`ivf` is a pure-numpy approximate backend (coarse-quantize with k-means, probe the `nprobe` nearest clusters at search time) — it needs no extra install and works on hosts where `faiss-cpu` has no wheel. Tune it via `backend_config={"n_clusters": ..., "nprobe": ...}`. It trades recall for speed only at low `nprobe`; the current implementation scores each query's candidates with a per-query Python loop, so at high `nprobe` (scanning most of the index) it is slower than `bruteforce`'s single vectorized matmul. See `docs/releases/v1.2.0.md` for the recall/latency sweep and current sweet spot.
 
 ## Reproducibility and Evidence
 
@@ -174,6 +178,7 @@ python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/
 - `notebooks/01_semantic_search.ipynb`
 - `notebooks/02_knn_baseline.ipynb`
 - `notebooks/03_recommender_similarity.ipynb`
+- `notebooks/05_ann_backend.ipynb`
 
 ## Troubleshooting
 
@@ -184,6 +189,7 @@ python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/
 
 ## Project Links
 
+- `docs/releases/v1.2.0.md`
 - `docs/releases/v1.1.0.md`
 - `docs/releases/v1.1.0-checklist.md`
 - `docs/reproducibility.md`
