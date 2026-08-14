@@ -23,6 +23,12 @@ The following modules and symbols are considered public and stability-scoped:
 - `vector_engine.eval.retrieval_report_detailed`
 - `vector_engine.eval.batch_metrics_summary`
 
+## Backend surface
+
+- `"bruteforce"` — exact search, pure numpy.
+- `"ivf"` — approximate search, pure numpy (added v1.2.0). Tunable via `backend_config={"n_clusters", "nprobe", "random_state", "max_iter"}`.
+- `"faiss"` — exact/approximate search via optional `faiss-cpu` extra.
+
 ## Compatibility guarantees
 
 - No breaking signature changes in v1 minor/patch releases.

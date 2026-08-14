@@ -1,6 +1,6 @@
 """Vector Engine public API."""
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 from .array import VectorArray
 from .index import VectorIndex
