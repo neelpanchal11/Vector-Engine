@@ -166,6 +166,8 @@ Recommended release evidence flow:
 ```bash
 python scripts/repro_smoke.py --output-dir artifacts/repro_smoke
 python scripts/benchmark_matrix.py --mode exact --warmup 2 --loops 8 --seed 7 --output-dir artifacts/benchmark_matrix
+python scripts/benchmark_ivf_batching.py --n 5000 --d 64 --nq 200 --k 10 --n-clusters 32 --nprobe-options 1,4,16,32 --loops 5 --warmup 1 --seed 22 --output artifacts/ivf_benchmark/ivf_batching_comparison.json
+python scripts/benchmark_ivf.py --n 5000 --d 64 --nq 100 --k 10 --n-clusters 32 --nprobe-options 1,4,8,16,32 --loops 3 --seed 7 --output artifacts/ivf_benchmark/ivf_batched_recall_sweep.json
 python scripts/publishable_results.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --output artifacts/benchmark_matrix/publishable_results.v1.json
 python scripts/credibility_audit.py --matrix-summary artifacts/benchmark_matrix/matrix_summary.json --stability-summary artifacts/testing_runs/stability_summary_bruteforce_200.json --publishable-summary artifacts/benchmark_matrix/publishable_results.v1.json --output artifacts/audit/credibility_audit.v1.json
 ```

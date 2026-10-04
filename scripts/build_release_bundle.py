@@ -3,9 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+def _project_version() -> str:
+    project_text = Path("pyproject.toml").read_text(encoding="utf-8")
+    project_section = re.search(r"(?ms)^\[project\]\s*(.*?)(?=^\[|\Z)", project_text)
+    if project_section is None:
+        raise ValueError("release_bundle_error: [project] section missing from pyproject.toml")
+    match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', project_section.group(1))
+    if match is None:
+        raise ValueError("release_bundle_error: project version missing from pyproject.toml")
+    return match.group(1)
 
 
 def _file_status(path: str) -> dict[str, Any]:
@@ -20,6 +32,7 @@ def _file_status(path: str) -> dict[str, Any]:
 def build_bundle(output_dir: str) -> dict[str, Any]:
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    version = _project_version()
 
     docs = [
         "README.md",
@@ -29,7 +42,7 @@ def build_bundle(output_dir: str) -> dict[str, Any]:
         "docs/credibility_audit.md",
         "docs/limitations.md",
         "docs/api_stability.md",
-        "docs/releases/v1.1.0.md",
+        f"docs/releases/v{version}.md",
         "docs/paper/v1_manuscript_outline.md",
         "docs/paper/reproducibility_appendix.md",
     ]
@@ -43,11 +56,13 @@ def build_bundle(output_dir: str) -> dict[str, Any]:
         "artifacts/testing_runs/stability_summary_bruteforce_200.json",
         "artifacts/audit/credibility_audit.v1.json",
         "artifacts/release_gates/performance_gate_report.v1.json",
+        "artifacts/ivf_benchmark/ivf_batching_comparison.json",
+        "artifacts/ivf_benchmark/ivf_batched_recall_sweep.json",
     ]
 
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "bundle_version": "v1.1.0",
+        "bundle_version": f"v{version}",
         "documents": [_file_status(path) for path in docs],
         "governance": [_file_status(path) for path in governance],
         "artifacts": [_file_status(path) for path in artifacts],

@@ -1,0 +1,4 @@
+include CITATION.cff
+recursive-include docs/releases *.md
+recursive-include notebooks *.ipynb
+recursive-include scripts *.py
