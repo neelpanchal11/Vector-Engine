@@ -157,7 +157,7 @@ Bundle outputs include:
 
 FAISS is optional. The required reproducibility path is bruteforce-safe.
 
-`ivf` is a pure-numpy approximate backend (coarse-quantize with k-means, probe the `nprobe` nearest clusters at search time) — it needs no extra install and works on hosts where `faiss-cpu` has no wheel. Tune it via `backend_config={"n_clusters": ..., "nprobe": ...}`. It trades recall for speed only at low `nprobe`; the current implementation scores each query's candidates with a per-query Python loop, so at high `nprobe` (scanning most of the index) it is slower than `bruteforce`'s single vectorized matmul. See `docs/releases/v1.2.0.md` for the recall/latency sweep and current sweet spot.
+`ivf` is a pure-numpy approximate backend (coarse-quantize with k-means, probe the `nprobe` nearest clusters at search time) — it needs no extra install and works on hosts where `faiss-cpu` has no wheel. Tune it via `backend_config={"n_clusters": ..., "nprobe": ...}`. Search batches queries by probed cluster to reduce per-query Python overhead. It still trades recall for speed as `nprobe` changes; see `docs/releases/v1.2.0.md` for the original recall/latency sweep and its implementation details.
 
 ## Reproducibility and Evidence
 

@@ -26,6 +26,14 @@ def _pairwise_scores(a: np.ndarray, b: np.ndarray, metric: Metric) -> np.ndarray
     raise ValueError(f"unsupported metric for ivf: {metric.name}")
 
 
+def _top_k_indices(scores: np.ndarray, k: int, higher_is_better: bool) -> np.ndarray:
+    ranked_scores = -scores if higher_is_better else scores
+    top = np.argpartition(ranked_scores, kth=k - 1, axis=1)[:, :k]
+    top_scores = np.take_along_axis(ranked_scores, top, axis=1)
+    order = np.argsort(top_scores, axis=1)
+    return np.take_along_axis(top, order, axis=1)
+
+
 def _kmeans_lloyd(x: np.ndarray, n_clusters: int, *, max_iter: int, seed: int) -> np.ndarray:
     """Minimal Lloyd's-algorithm k-means, pure numpy. Returns centroids (n_clusters, d)."""
     rng = np.random.default_rng(seed)
@@ -129,29 +137,40 @@ class IVFBackend:
 
         n_queries = queries.shape[0]
         k_eff = min(k, self.xb.shape[0])
-        out_scores = np.full((n_queries, k_eff), np.nan, dtype=np.float32)
+        worst_score = -np.inf if self.metric.higher_is_better else np.inf
+        out_scores = np.full((n_queries, k_eff), worst_score, dtype=np.float32)
         out_ids = np.full((n_queries, k_eff), -1, dtype=np.int64)
+        candidate_counts = np.zeros(n_queries, dtype=np.int64)
 
-        for i in range(n_queries):
-            candidate_mask = np.isin(self.labels, probe_clusters[i])
-            candidate_idx = np.nonzero(candidate_mask)[0]
-            if candidate_idx.size == 0:
-                candidate_idx = np.arange(self.xb.shape[0])
+        for cluster in range(self.n_clusters):
+            query_idx = np.flatnonzero(np.any(probe_clusters == cluster, axis=1))
+            candidate_idx = np.flatnonzero(self.labels == cluster)
+            if query_idx.size == 0 or candidate_idx.size == 0:
+                continue
 
-            candidates = self.xb[candidate_idx]
-            scores = _pairwise_scores(queries[i : i + 1], candidates, self.metric)[0]
-
+            scores = _pairwise_scores(queries[query_idx], self.xb[candidate_idx], self.metric)
             this_k = min(k_eff, candidate_idx.size)
-            if self.metric.higher_is_better:
-                top = np.argpartition(-scores, kth=this_k - 1)[:this_k]
-                order = np.argsort(-scores[top])
-            else:
-                top = np.argpartition(scores, kth=this_k - 1)[:this_k]
-                order = np.argsort(scores[top])
-            top = top[order]
+            top = _top_k_indices(scores, this_k, self.metric.higher_is_better)
+            cluster_scores = np.take_along_axis(scores, top, axis=1)
+            cluster_ids = candidate_idx[top]
+            candidate_counts[query_idx] += candidate_idx.size
+            merged_scores = np.concatenate((out_scores[query_idx], cluster_scores), axis=1)
+            merged_ids = np.concatenate((out_ids[query_idx], cluster_ids), axis=1)
+            merged_top = _top_k_indices(merged_scores, k_eff, self.metric.higher_is_better)
+            out_scores[query_idx] = np.take_along_axis(merged_scores, merged_top, axis=1)
+            out_ids[query_idx] = np.take_along_axis(merged_ids, merged_top, axis=1)
 
-            out_scores[i, :this_k] = scores[top]
-            out_ids[i, :this_k] = candidate_idx[top]
+        fallback_idx = np.flatnonzero(candidate_counts == 0)
+        if fallback_idx.size:
+            scores = _pairwise_scores(queries[fallback_idx], self.xb, self.metric)
+            top = _top_k_indices(scores, k_eff, self.metric.higher_is_better)
+            out_scores[fallback_idx] = np.take_along_axis(scores, top, axis=1)
+            out_ids[fallback_idx] = top
+            candidate_counts[fallback_idx] = self.xb.shape[0]
+
+        invalid = np.arange(k_eff)[None, :] >= np.minimum(candidate_counts, k_eff)[:, None]
+        out_scores[invalid] = np.nan
+        out_ids[invalid] = -1
 
         return out_scores, out_ids
 
